@@ -58,7 +58,7 @@ def test_db_connection():
 
 if __name__ == '__main__':
     with app.app_context():
-        if not IS_HEROKU:
+        if IS_HEROKU or not IS_HEROKU:
             # Create database tables and seed only if not on Heroku
             db.create_all()
             seed_challenges(app)
