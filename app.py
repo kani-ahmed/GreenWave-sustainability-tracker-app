@@ -26,7 +26,11 @@ app = create_app()
 # Configure the SQLAlchemy database URI
 if IS_HEROKU:
     # Parse the ClearDB URL and use it for SQLAlchemy
-    cleardb_url = os.environ['CLEARDB_DATABASE_URL'].replace('mysql://', 'mysql+pymysql://')
+    cleardb_url = os.environ['CLEARDB_DATABASE_URL']
+    # Remove the reconnect=true query from the URL if present
+    if '?reconnect=true' in cleardb_url:
+        cleardb_url = cleardb_url.split('?')[0]  # Alternatively, cleardb_url.replace('?reconnect=true', '')
+    cleardb_url = cleardb_url.replace('mysql://', 'mysql+pymysql://')
     app.config['SQLALCHEMY_DATABASE_URI'] = cleardb_url
 else:
     # When running locally, take the database URI from the .env file
