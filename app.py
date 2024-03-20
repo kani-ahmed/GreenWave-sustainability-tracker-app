@@ -1,18 +1,21 @@
-# app.py
-
-from flask import Flask
-from dotenv import load_dotenv
-from extensions import db
 import os
 import logging
+from flask import Flask
+from extensions import db
 from sqlalchemy import text
 from seed import seed_challenges
 
 # Initialize logging
 logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=logging.DEBUG, datefmt='%Y-%m-%d %H:%M:%S')
 
-# Load environment variables
-load_dotenv()
+# Determine if the app is running on Heroku
+IS_HEROKU = 'DYNO' in os.environ
+
+# Load environment variables only if not on Heroku
+if not IS_HEROKU:
+    from dotenv import load_dotenv
+
+    load_dotenv()
 
 # Import the create_app function from your views package
 from views import create_app
@@ -21,9 +24,17 @@ from views import create_app
 app = create_app()
 
 # Configure the SQLAlchemy database URI
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI')
+if IS_HEROKU:
+    # Parse the ClearDB URL and use it for SQLAlchemy
+    cleardb_url = os.environ['CLEARDB_DATABASE_URL'].replace('mysql://', 'mysql+pymysql://')
+    app.config['SQLALCHEMY_DATABASE_URI'] = cleardb_url
+else:
+    # When running locally, take the database URI from the .env file
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI')
+
 # Prevent SQLAlchemy from tracking modifications
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 # Initialize the SQLAlchemy app
 db.init_app(app)
 
@@ -43,18 +54,12 @@ def test_db_connection():
 
 if __name__ == '__main__':
     with app.app_context():
-        try:
-            # Create database tables
+        if not IS_HEROKU:
+            # Create database tables and seed only if not on Heroku
             db.create_all()
-            logging.info("Database tables created successfully.")
-
-            # Seed the database with challenge data
             seed_challenges(app)
-
-            # Test database connection
-            test_db_connection()
-        except Exception as e:
-            logging.error(f"Error during startup: {e}")
-
+            logging.info("Database tables created successfully.")
+            test_db_connection()  # Test database connection only if not on Heroku
     # Run the Flask app
-    app.run(debug=True)
+    # The host must be set to '0.0.0.0' to be accessible within the Heroku dyno
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
