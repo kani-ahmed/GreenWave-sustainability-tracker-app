@@ -56,14 +56,19 @@ def test_db_connection():
         logging.error(f"Database connection test failed: {e}")
 
 
-if __name__ == '__main__':
+# Function to create tables and seed data
+def create_tables_and_seed_data():
     with app.app_context():
-        if IS_HEROKU or not IS_HEROKU:
-            # Create database tables and seed only if not on Heroku
-            db.create_all()
-            seed_challenges(app)
-            logging.info("Database tables created successfully.")
-            test_db_connection()  # Test database connection only if not on Heroku
+        db.create_all()
+        seed_challenges(app)
+        logging.info("Database tables created successfully.")
+        test_db_connection()  # Test database connection
+
+
+# Create tables and seed data
+create_tables_and_seed_data()
+
+if __name__ == '__main__':
     # Run the Flask app
     # The host must be set to '0.0.0.0' to be accessible within the Heroku dyno
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
