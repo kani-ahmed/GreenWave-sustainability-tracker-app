@@ -5,56 +5,99 @@ on:
     types: [opened, synchronize, reopened]
     branches:
       - main
-  schedule:
-    - cron: '*/5 * * * *'  # Run every 5 minutes to check for approvals.
 
 jobs:
-  check_approvals_and_merge:
+  notify_slack:
     runs-on: ubuntu-latest
     env:
-      SLACK_CHANNEL_ID: C06R1GVVDPF
-      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Get current time
+        id: current-time
+        run: echo "::set-output name=time::$(date +%s)"
 
-      - name: Install GitHub CLI
+      - name: Notify Slack - Pull Request Opened
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              "attachments": [
+                {
+                  "color": "#36a64f",
+                  "pretext": ":eyes: Pull Request Opened",
+                  "title": "Pull Request #${{ github.event.pull_request.number }}",
+                  "title_link": "${{ github.event.pull_request.html_url }}",
+                  "text": "${{ github.event.pull_request.title }}",
+                  "fields": [
+                    {
+                      "title": "Opened by",
+                      "value": "${{ github.event.pull_request.user.login }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Repository",
+                      "value": "${{ github.repository }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Target Branch",
+                      "value": "${{ github.event.pull_request.base.ref }}",
+                      "short": true
+                    }
+                  ],
+                  "footer": "GitHub Actions",
+                  "footer_icon": "https://github.githubassets.com/favicon.ico",
+                  "ts": ${{ steps.current-time.outputs.time }}
+                }
+              ]
+            }
+      - name: Wait for Required Approvals
+        id: wait_for_approvals
         run: |
-          sudo apt update && sudo apt install gh -y
-          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-
-      - name: Check Pull Request Approvals
-        run: |
-          # Get all open pull requests
-          pull_requests=$(gh pr list --json number --state open --limit 100)
-          echo "$pull_requests"
-          
-          # Loop through each pull request
-          for pr_number in $(echo "$pull_requests" | jq -r '.[].number'); do
-            echo "Checking PR #$pr_number for approvals"
-            
-            # Find the latest 'Pull Request Opened' message for the current PR
-            message_id=$(curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-              "https://slack.com/api/conversations.history?channel=$SLACK_CHANNEL_ID&limit=100" | \
-              jq -r ".messages | map(select(.text | test(\"Pull Request #${pr_number}(\\\\s|:|$)\"))) | .[0].ts // empty")
-            
-            if [[ -n "$message_id" ]]; then
-              # Get the count of thumbs-up reactions for the message
-              reaction_count=$(curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-                "https://slack.com/api/reactions.get?channel=$SLACK_CHANNEL_ID&timestamp=$message_id" | \
-                jq '.message.reactions[] | select(.name == "+1" or .name == "thumbsup") | .count // 0')
-              
-              echo "Pull Request #$pr_number - Thumbs-up count: $reaction_count"
-              
-              if [[ "$reaction_count" -ge 5 ]]; then
-                echo "Merging Pull Request #$pr_number with $reaction_count thumbs-up reactions."
-                gh pr merge "$pr_number" --auto --merge
-              else
-                echo "Pull Request #$pr_number has not reached the required number of approvals."
-              fi
-            else
-              echo "No 'Pull Request Opened' message found for Pull Request #$pr_number in Slack."
-            fi
+          approvals=0
+          while [ $approvals -lt 5 ]; do
+            sleep 60
+            approvals=$(gh pr view ${{ github.event.pull_request.number }} --json reviewDecision -q '.reviewDecision' | grep APPROVED | wc -l)
+            echo "Current approvals: $approvals"
           done
+          echo "Pull Request #${{ github.event.pull_request.number }} has been approved by all required reviewers"
+          echo "::set-output name=approved::true"
+      - name: Notify Slack - Pull Request Approved
+        if: steps.wait_for_approvals.outputs.approved == 'true'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              "attachments": [
+                {
+                  "color": "#36a64f",
+                  "pretext": ":white_check_mark: Pull Request Approved",
+                  "title": "Pull Request #${{ github.event.pull_request.number }}",
+                  "title_link": "${{ github.event.pull_request.html_url }}",
+                  "text": "${{ github.event.pull_request.title }}",
+                  "fields": [
+                    {
+                      "title": "Approved by",
+                      "value": "All required reviewers",
+                      "short": true
+                    },
+                    {
+                      "title": "Repository",
+                      "value": "${{ github.repository }}",
+                      "short": true
+                    }
+                  ],
+                  "footer": "GitHub Actions",
+                  "footer_icon": "https://github.githubassets.com/favicon.ico",
+                  "ts": ${{ steps.current-time.outputs.time }}
+                }
+              ]
+            }
+      - name: Merge Pull Request
+        if: steps.wait_for_approvals.outputs.approved == 'true'
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} --auto --merge
+          echo "Pull Request #${{ github.event.pull_request.number }} has been merged to the main branch"
