@@ -23,11 +23,43 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Notify Slack - Python Setup
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "text": ":python: Python 3.12 has been set up for the workflow."
+            }
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install flake8 pytest
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Notify Slack - Dependencies Installed
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "text": ":white_check_mark: All dependencies have been successfully installed."
+            }
+
+      - name: Notify Slack - Dependencies Installation Failed
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "text": ":x: Failed to install dependencies."
+            }
 
       - name: Lint with flake8
         run: |
@@ -35,6 +67,28 @@ jobs:
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Notify Slack - Linting Passed
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "text": ":white_check_mark: Linting passed successfully."
+            }
+
+      - name: Notify Slack - Linting Failed
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "text": ":x: Linting failed with errors."
+            }
 
       - name: Check for test files and run pytest if found
         run: |
@@ -44,46 +98,46 @@ jobs:
             echo "No tests found. Skipping pytest."
           fi
 
-      - name: Notify Slack on Push
-        if: github.event_name == 'push'
+      - name: Notify Slack - Tests Passed
+        if: success()
         uses: 8398a7/action-slack@v3
         with:
           status: custom
-          fields: commit,author,action
+          fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "text": ":rocket: Pushed commit `${{ github.sha }}` by ${{ github.event.head_commit.author.name }} to branch `${{ github.ref }}` of repository `${{ github.repository }}`."
+              "text": ":white_check_mark: All tests passed successfully."
             }
 
-      - name: Notify Slack on Pull Request
-        if: github.event_name == 'pull_request'
-        uses: 8398a7/action-slack@v3
-        with:
-          status: custom
-          fields: pull_request,author,action
-          custom_payload: |
-            {
-              "text": ":arrow_heading_up: Opened pull request #${{ github.event.pull_request.number }} by ${{ github.event.pull_request.user.login }} for branch `${{ github.head_ref }}` of repository `${{ github.repository }}`."
-            }
-
-      - name: Notify Slack on Test Results
-        if: always()
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          fields: tests
-          custom_payload: |
-            {
-              "text": ":white_check_mark: All tests passed for commit `${{ github.sha }}` on branch `${{ github.ref }}` of repository `${{ github.repository }}`."
-            }
-
-      - name: Notify Slack on Failure
+      - name: Notify Slack - Tests Failed
         if: failure()
         uses: 8398a7/action-slack@v3
         with:
-          status: ${{ job.status }}
-          fields: tests
+          status: custom
+          fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "text": ":x: Tests failed for commit `${{ github.sha }}` on branch `${{ github.ref }}` of repository `${{ github.repository }}`."
+              "text": ":x: Tests failed."
+            }
+
+      - name: Notify Slack - Workflow Succeeded
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "text": ":tada: The workflow completed successfully."
+            }
+
+      - name: Notify Slack - Workflow Failed
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "text": ":x: The workflow failed."
             }
