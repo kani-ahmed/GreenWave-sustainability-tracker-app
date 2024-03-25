@@ -5,6 +5,8 @@ on:
     types: [opened, synchronize, reopened]
     branches:
       - main
+  schedule:
+    - cron: '*/5 * * * *'  # Run every 5 minutes
 
 jobs:
   notify_slack:
@@ -15,46 +17,48 @@ jobs:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
     steps:
-      - name: Get current time
-        id: current-time
-        run: echo "::set-output name=time::$(date +%s)"
-
       - name: Notify Slack - Pull Request Opened
-        id: slack_notify
-        run: |
-          message_ts=$(curl -s -X POST -H 'Content-type: application/json' -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-            --data '{"channel":"'"$SLACK_CHANNEL_ID"'","attachments":[{"color":"#36a64f","pretext":":eyes: Pull Request Opened","title":"Pull Request #${{ github.event.pull_request.number }}","title_link":"${{ github.event.pull_request.html_url }}","text":"${{ github.event.pull_request.title }}","fields":[{"title":"Opened by","value":"${{ github.event.pull_request.user.login }}","short":true},{"title":"Repository","value":"${{ github.repository }}","short":true},{"title":"Target Branch","value":"${{ github.event.pull_request.base.ref }}","short":true}],"footer":"GitHub Actions","footer_icon":"https://github.githubassets.com/favicon.ico","ts":${{ steps.current-time.outputs.time }}}]}' \
-            https://slack.com/api/chat.postMessage | jq -r '.ts')
-          echo "::set-output name=message_ts::$message_ts"
-
-      - name: Wait for Required Approvals
-        id: wait_for_approvals
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-        run: |
-          approvals=0
-          message_ts=${{ steps.slack_notify.outputs.message_ts }}
-          while [ $approvals -lt 1 ]; do
-            sleep 60
-            reaction_count=$(curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" "https://slack.com/api/reactions.get?channel=$SLACK_CHANNEL_ID&timestamp=$message_ts" | jq '.message.reactions[] | select(.name=="thumbsup") | .count')
-            approvals=$((reaction_count))
-            echo "Current approvals: $approvals"
-          done
-          echo "Pull Request #${{ github.event.pull_request.number }} has been approved by all required reviewers"
-          echo "::set-output name=approved::true"
-
-      - name: Notify Slack - Pull Request Approved
-        if: steps.wait_for_approvals.outputs.approved == 'true'
+        if: github.event_name == 'pull_request' && github.event.action == 'opened'
         run: |
           curl -s -X POST -H 'Content-type: application/json' -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-            --data '{"channel":"'"$SLACK_CHANNEL_ID"'","attachments":[{"color":"#36a64f","pretext":":white_check_mark: Pull Request Approved","title":"Pull Request #${{ github.event.pull_request.number }}","title_link":"${{ github.event.pull_request.html_url }}","text":"${{ github.event.pull_request.title }}","fields":[{"title":"Approved by","value":"All required reviewers","short":true},{"title":"Repository","value":"${{ github.repository }}","short":true}],"footer":"GitHub Actions","footer_icon":"https://github.githubassets.com/favicon.ico","ts":${{ steps.current-time.outputs.time }}}]}' \
+            --data '{"channel":"'"$SLACK_CHANNEL_ID"'","text":":eyes: Pull Request Opened\nPull Request #${{ github.event.pull_request.number }}\n${{ github.event.pull_request.html_url }}"}' \
             https://slack.com/api/chat.postMessage
 
-      - name: Merge Pull Request
-        if: steps.wait_for_approvals.outputs.approved == 'true'
+      - name: Check Pull Request Approvals
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh auth setup-git
-          gh pr merge ${{ github.event.pull_request.number }} --auto --merge
-          echo "Pull Request #${{ github.event.pull_request.number }} has been merged to the main branch"
+          # Get all open pull requests
+          pull_requests=$(gh pr list --json number,title,url --state open --limit 100)
+
+          # Loop through each pull request
+          for pr in $(echo "$pull_requests" | jq -c '.[]'); do
+            pr_number=$(echo "$pr" | jq -r '.number')
+            pr_title=$(echo "$pr" | jq -r '.title')
+            pr_url=$(echo "$pr" | jq -r '.url')
+
+            # Find the latest 'Pull Request Opened' message for the current PR
+            message_id=$(curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" "https://slack.com/api/conversations.history?channel=$SLACK_CHANNEL_ID&limit=100" | jq -r ".messages | map(select(.text | contains(\"Pull Request #$pr_number\"))) | .[0].ts")
+
+            if [ -n "$message_id" ]; then
+              # Get the count of thumbs-up reactions for the message
+              reaction_count=$(curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" "https://slack.com/api/reactions.get?channel=$SLACK_CHANNEL_ID&timestamp=$message_id" | jq '.message.reactions[] | select(.name=="thumbsup") | .count')
+
+              echo "Pull Request #$pr_number - Thumbs-up count: $reaction_count"
+
+              if [ "$reaction_count" -ge 5 ]; then
+                echo "Merging Pull Request #$pr_number"
+                gh pr merge "$pr_number" --auto --merge
+                echo "Pull Request #$pr_number has been merged to the main branch"
+              fi
+            else
+              echo "No 'Pull Request Opened' message found for Pull Request #$pr_number"
+            fi
+          done
+
+      - name: Notify Slack - Pull Request Approved and Merged
+        if: success()
+        run: |
+          curl -s -X POST -H 'Content-type: application/json' -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            --data '{"channel":"'"$SLACK_CHANNEL_ID"'","text":":white_check_mark: Pull Request(s) Approved and Merged"}' \
+            https://slack.com/api/chat.postMessage
