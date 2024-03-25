@@ -58,7 +58,7 @@ jobs:
         id: wait_for_approvals
         run: |
           approvals=0
-          while [ $approvals -lt 5 ]; do
+          while [ $approvals -lt 1 ]; do
             sleep 60
             approvals=$(gh pr view ${{ github.event.pull_request.number }} --json reviewDecision -q '.reviewDecision' | grep APPROVED | wc -l)
             echo "Current approvals: $approvals"
