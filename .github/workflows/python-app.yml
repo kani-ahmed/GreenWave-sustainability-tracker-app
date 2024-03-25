@@ -16,10 +16,39 @@ jobs:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
     steps:
+      - name: Notify Slack - Job Start
+        uses: act10ns/slack@v2
+        with:
+          status: custom
+          channel: '#project-development'
+          custom_payload: |
+            {
+              "attachments": [
+                {
+                  "color": "#36a64f",
+                  "title": "CI/CD Pipeline",
+                  "text": "Starting Python application build process...",
+                  "fields": [
+                    {
+                      "title": "Branch",
+                      "value": "${{ github.ref }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Action",
+                      "value": "Start",
+                      "short": true
+                    }
+                  ]
+                }
+              ]
+            }
+        if: always()
+
       - uses: actions/checkout@v3
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v3
         with:
           python-version: "3.12"
 
@@ -36,6 +65,35 @@ jobs:
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
+      - name: Notify Slack - Lint Completed
+        uses: act10ns/slack@v2
+        with:
+          status: custom
+          channel: '#project-development'
+          custom_payload: |
+            {
+              "attachments": [
+                {
+                  "color": "${{ job.status == 'success' && 'good' || 'danger' }}",
+                  "title": "CI/CD Pipeline",
+                  "text": "Linting completed",
+                  "fields": [
+                    {
+                      "title": "Branch",
+                      "value": "${{ github.ref }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Action",
+                      "value": "Lint",
+                      "short": true
+                    }
+                  ]
+                }
+              ]
+            }
+        if: always()
+
       - name: Check for test files and run pytest if found
         run: |
           if compgen -G "tests/test_*.py" > /dev/null; then
@@ -44,14 +102,65 @@ jobs:
             echo "No tests found. Skipping pytest."
           fi
 
-      - name: Notify Slack
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          fields: repo,message,commit,author,action,eventName,ref,workflow,job,took
-          author_name: GitHub Actions
-          mention: here
-          if_mention: failure,cancelled
-          job_name: Build and Test
-          channel: '#project-development'
+      - name: Notify Slack - Test Completed
+        uses: act10ns/slack@v2
         if: always()
+        with:
+          status: custom
+          channel: '#project-development'
+          custom_payload: |
+            {
+              "attachments": [
+                {
+                  "color": "${{ job.status == 'success' && 'good' || 'danger' }}",
+                  "title": "CI/CD Pipeline",
+                  "text": "Testing completed",
+                  "fields": [
+                    {
+                      "title": "Branch",
+                      "value": "${{ github.ref }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Action",
+                      "value": "Test",
+                      "short": true
+                    }
+                  ]
+                }
+              ]
+            }
+
+      - name: Notify Slack - Job Finished
+        uses: act10ns/slack@v2
+        if: always()
+        with:
+          status: custom
+          channel: '#project-development'
+          custom_payload: |
+            {
+              "attachments": [
+                {
+                  "color": "${{ job.status == 'success' && 'good' || 'danger' }}",
+                  "title": "CI/CD Pipeline",
+                  "text": "Build process completed",
+                  "fields": [
+                    {
+                      "title": "Branch",
+                      "value": "${{ github.ref }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Action",
+                      "value": "Finish",
+                      "short": true
+                    },
+                    {
+                      "title": "Status",
+                      "value": "${{ job.status }}",
+                      "short": true
+                    }
+                  ]
+                }
+              ]
+            }
