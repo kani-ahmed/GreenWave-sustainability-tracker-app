@@ -12,18 +12,11 @@ jobs:
     env:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
-      - name: Set up GitHub CLI
-        run: |
-          gh auth setup-git
-          gh auth login --with-token <"${{ secrets.GH_TOKEN }}"
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Get current time
         id: current-time
@@ -72,7 +65,7 @@ jobs:
           approvals=0
           while [ $approvals -lt 5 ]; do
             sleep 60
-            approvals=$(gh pr view ${{ github.event.pull_request.number }} --json reviewDecision -q '.reviewDecision' | grep APPROVED | wc -l)
+            approvals=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "${{ github.event.pull_request.url }}/reviews" | jq '[.[] | select(.state == "APPROVED")] | length')
             echo "Current approvals: $approvals"
           done
           echo "Pull Request #${{ github.event.pull_request.number }} has been approved by all required reviewers"
@@ -114,5 +107,5 @@ jobs:
       - name: Merge Pull Request
         if: steps.wait_for_approvals.outputs.approved == 'true'
         run: |
-          gh pr merge ${{ github.event.pull_request.number }} --auto --merge
+          curl -X PUT -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github.v3+json" "${{ github.event.pull_request.url }}/merge"
           echo "Pull Request #${{ github.event.pull_request.number }} has been merged to the main branch"
