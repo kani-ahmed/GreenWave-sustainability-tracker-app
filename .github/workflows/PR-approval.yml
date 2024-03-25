@@ -1,111 +1,111 @@
-name: Pull Request Approval Workflow
-
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches:
-      - main
-
-jobs:
-  notify_slack:
-    runs-on: ubuntu-latest
-    env:
-      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Get current time
-        id: current-time
-        run: echo "::set-output name=time::$(date +%s)"
-
-      - name: Notify Slack - Pull Request Opened
-        uses: 8398a7/action-slack@v3
-        with:
-          status: custom
-          custom_payload: |
-            {
-              "attachments": [
-                {
-                  "color": "#36a64f",
-                  "pretext": ":eyes: Pull Request Opened",
-                  "title": "Pull Request #${{ github.event.pull_request.number }}",
-                  "title_link": "${{ github.event.pull_request.html_url }}",
-                  "text": "${{ github.event.pull_request.title }}",
-                  "fields": [
-                    {
-                      "title": "Opened by",
-                      "value": "${{ github.event.pull_request.user.login }}",
-                      "short": true
-                    },
-                    {
-                      "title": "Repository",
-                      "value": "${{ github.repository }}",
-                      "short": true
-                    },
-                    {
-                      "title": "Target Branch",
-                      "value": "${{ github.event.pull_request.base.ref }}",
-                      "short": true
-                    }
-                  ],
-                  "footer": "GitHub Actions",
-                  "footer_icon": "https://github.githubassets.com/favicon.ico",
-                  "ts": ${{ steps.current-time.outputs.time }}
-                }
-              ]
-            }
-
-      - name: Wait for Required Approvals
-        id: wait_for_approvals
-        run: |
-          approvals=0
-          while [ $approvals -lt 5 ]; do
-            sleep 60
-            approvals=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "${{ github.event.pull_request.url }}/reviews" | jq '[.[] | select(.state == "APPROVED")] | length')
-            echo "Current approvals: $approvals"
-          done
-          echo "Pull Request #${{ github.event.pull_request.number }} has been approved by all required reviewers"
-          echo "::set-output name=approved::true"
-
-      - name: Notify Slack - Pull Request Approved
-        if: steps.wait_for_approvals.outputs.approved == 'true'
-        uses: 8398a7/action-slack@v3
-        with:
-          status: custom
-          custom_payload: |
-            {
-              "attachments": [
-                {
-                  "color": "#36a64f",
-                  "pretext": ":white_check_mark: Pull Request Approved",
-                  "title": "Pull Request #${{ github.event.pull_request.number }}",
-                  "title_link": "${{ github.event.pull_request.html_url }}",
-                  "text": "${{ github.event.pull_request.title }}",
-                  "fields": [
-                    {
-                      "title": "Approved by",
-                      "value": "All required reviewers",
-                      "short": true
-                    },
-                    {
-                      "title": "Repository",
-                      "value": "${{ github.repository }}",
-                      "short": true
-                    }
-                  ],
-                  "footer": "GitHub Actions",
-                  "footer_icon": "https://github.githubassets.com/favicon.ico",
-                  "ts": ${{ steps.current-time.outputs.time }}
-                }
-              ]
-            }
-
-      - name: Merge Pull Request
-        if: steps.wait_for_approvals.outputs.approved == 'true'
-        run: |
-          curl -X PUT -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github.v3+json" "${{ github.event.pull_request.url }}/merge"
-          echo "Pull Request #${{ github.event.pull_request.number }} has been merged to the main branch"
+#name: Pull Request Approval Workflow
+#
+#on:
+#  pull_request:
+#    types: [opened, synchronize, reopened]
+#    branches:
+#      - main
+#
+#jobs:
+#  notify_slack:
+#    runs-on: ubuntu-latest
+#    env:
+#      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+#      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+#      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#
+#    steps:
+#      - name: Checkout repository
+#        uses: actions/checkout@v3
+#
+#      - name: Get current time
+#        id: current-time
+#        run: echo "::set-output name=time::$(date +%s)"
+#
+#      - name: Notify Slack - Pull Request Opened
+#        uses: 8398a7/action-slack@v3
+#        with:
+#          status: custom
+#          custom_payload: |
+#            {
+#              "attachments": [
+#                {
+#                  "color": "#36a64f",
+#                  "pretext": ":eyes: Pull Request Opened",
+#                  "title": "Pull Request #${{ github.event.pull_request.number }}",
+#                  "title_link": "${{ github.event.pull_request.html_url }}",
+#                  "text": "${{ github.event.pull_request.title }}",
+#                  "fields": [
+#                    {
+#                      "title": "Opened by",
+#                      "value": "${{ github.event.pull_request.user.login }}",
+#                      "short": true
+#                    },
+#                    {
+#                      "title": "Repository",
+#                      "value": "${{ github.repository }}",
+#                      "short": true
+#                    },
+#                    {
+#                      "title": "Target Branch",
+#                      "value": "${{ github.event.pull_request.base.ref }}",
+#                      "short": true
+#                    }
+#                  ],
+#                  "footer": "GitHub Actions",
+#                  "footer_icon": "https://github.githubassets.com/favicon.ico",
+#                  "ts": ${{ steps.current-time.outputs.time }}
+#                }
+#              ]
+#            }
+#
+#      - name: Wait for Required Approvals
+#        id: wait_for_approvals
+#        run: |
+#          approvals=0
+#          while [ $approvals -lt 5 ]; do
+#            sleep 60
+#            approvals=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "${{ github.event.pull_request.url }}/reviews" | jq '[.[] | select(.state == "APPROVED")] | length')
+#            echo "Current approvals: $approvals"
+#          done
+#          echo "Pull Request #${{ github.event.pull_request.number }} has been approved by all required reviewers"
+#          echo "::set-output name=approved::true"
+#
+#      - name: Notify Slack - Pull Request Approved
+#        if: steps.wait_for_approvals.outputs.approved == 'true'
+#        uses: 8398a7/action-slack@v3
+#        with:
+#          status: custom
+#          custom_payload: |
+#            {
+#              "attachments": [
+#                {
+#                  "color": "#36a64f",
+#                  "pretext": ":white_check_mark: Pull Request Approved",
+#                  "title": "Pull Request #${{ github.event.pull_request.number }}",
+#                  "title_link": "${{ github.event.pull_request.html_url }}",
+#                  "text": "${{ github.event.pull_request.title }}",
+#                  "fields": [
+#                    {
+#                      "title": "Approved by",
+#                      "value": "All required reviewers",
+#                      "short": true
+#                    },
+#                    {
+#                      "title": "Repository",
+#                      "value": "${{ github.repository }}",
+#                      "short": true
+#                    }
+#                  ],
+#                  "footer": "GitHub Actions",
+#                  "footer_icon": "https://github.githubassets.com/favicon.ico",
+#                  "ts": ${{ steps.current-time.outputs.time }}
+#                }
+#              ]
+#            }
+#
+#      - name: Merge Pull Request
+#        if: steps.wait_for_approvals.outputs.approved == 'true'
+#        run: |
+#          curl -X PUT -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -H "Accept: application/vnd.github.v3+json" "${{ github.event.pull_request.url }}/merge"
+#          echo "Pull Request #${{ github.event.pull_request.number }} has been merged to the main branch"
