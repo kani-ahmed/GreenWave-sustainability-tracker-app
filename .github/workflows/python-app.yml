@@ -151,16 +151,11 @@ jobs:
                       "short": true
                     },
                     {
-                      "title": "Action",
-                      "value": "Finish",
-                      "short": true
-                    },
-                    {
-                      "title": "Status",
-                      "value": "${{ job.status }}",
-                      "short": true
+                    "title": "Action",
+                    "value": "Build",
+                    "short": true
                     }
-                  ]
+                    ]
+                    }
+                    ]
                 }
-              ]
-            }
