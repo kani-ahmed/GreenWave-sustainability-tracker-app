@@ -1,0 +1,28 @@
+name: Workflow Dispatch Merge
+
+on:
+  workflow_dispatch:
+    inputs:
+      prNumber:
+        description: 'Pull Request Number to Merge to PR-Approval-with-Emoji'
+        required: true
+    branches:
+      - PR-Approval-with-Emoji
+
+jobs:
+  merge_pull_request:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: PR-Approval-with-Emoji
+
+      - name: Merge Pull Request
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=${{ github.event.inputs.prNumber }}
+          curl -X PUT -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" \
+          "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER/merge"
+          echo "Pull Request #$PR_NUMBER has been merged into the PR-Approval-with-Emoji branch."
