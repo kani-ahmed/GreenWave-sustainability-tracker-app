@@ -1,6 +1,9 @@
 import requests
 import time
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Slack configuration
 SLACK_CHANNEL_ID = os.getenv('SLACK_CHANNEL_ID')
@@ -33,6 +36,7 @@ def find_latest_pr_opened_message(channel_id):
     if response.status_code == 200:
         messages = response.json().get("messages", [])
         for message in messages:
+            print(message)
             if "text" in message and "Pull Request Opened" in message["text"]:
                 return message
             if "attachments" in message:
@@ -49,6 +53,7 @@ def get_reaction_count(message_ts, channel_id):
     response = requests.get(REACTIONS_GET_URL, headers=slack_headers, params=params)
     if response.status_code == 200:
         data = response.json()
+        print(data)
         reactions = data.get('message', {}).get('reactions', [])
         for reaction in reactions:
             if reaction['name'] == '+1':
@@ -70,7 +75,7 @@ def trigger_github_workflow(thumbs_up_count):
         print(f"Failed to trigger the GitHub workflow. Status: {response.status_code}, Response: {response.text}")
 
 
-def continuously_check_reactions(threshold=1):
+def continuously_check_reactions(threshold=5):
     while True:
         latest_pr_message = find_latest_pr_opened_message(SLACK_CHANNEL_ID)
         if latest_pr_message:
