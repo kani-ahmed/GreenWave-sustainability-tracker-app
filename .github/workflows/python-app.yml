@@ -15,6 +15,10 @@ jobs:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
     steps:
+      - name: Get current time
+        id: current-time
+        run: echo "::set-output name=time::$(date +%s)"
+
       - uses: actions/checkout@v3
 
       - name: Notify Slack on Action
