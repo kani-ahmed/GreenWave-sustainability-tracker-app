@@ -240,6 +240,16 @@ jobs:
                       "title": "Commit",
                       "value": "${{ github.sha }}",
                       "short": true
+                    },
+                    {
+                      "title": "Deployed by",
+                      "value": "${{ github.actor }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Status",
+                      "value": "Completed",
+                      "short": true
                     }
                   ],
                   "footer": "GitHub Actions",
@@ -290,3 +300,4 @@ jobs:
                 }
               ]
             }
+      
