@@ -23,43 +23,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install flake8 pytest
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-
-      - name: Get installed dependencies count
-        id: installed-dependencies
-        run: |
-          count=$(pip list --format=freeze | wc -l)
-          echo "::set-output name=count::$count"
-
-      - name: Lint with flake8
-        id: linting
-        run: |
-          # stop the build if there are Python syntax errors or undefined names
-          flake8_output=$(flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics)
-          flake8_exit_code=$?
-          echo "::set-output name=flake8_output::$flake8_output"
-          echo "::set-output name=flake8_exit_code::$flake8_exit_code"
-          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
-      - name: Check for test files and run pytest if found
-        id: testing
-        run: |
-          if compgen -G "tests/test_*.py" > /dev/null; then
-            pytest_output=$(pytest)
-            pytest_exit_code=$?
-            echo "::set-output name=pytest_output::$pytest_output"
-            echo "::set-output name=pytest_exit_code::$pytest_exit_code"
-          else
-            echo "No tests found. Skipping pytest."
-            echo "::set-output name=pytest_output::No tests found."
-            echo "::set-output name=pytest_exit_code::0"
-          fi
-
       - name: Notify Slack - Python Setup
         uses: 8398a7/action-slack@v3
         with:
@@ -70,42 +33,111 @@ jobs:
               "text": ":python: Python 3.12 has been set up for the workflow."
             }
 
-      - name: Notify Slack - Dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Notify Slack - Dependencies Installed
+        if: success()
         uses: 8398a7/action-slack@v3
         with:
-          status: ${{ job.status }}
+          status: custom
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "text": "*Dependencies:*\nInstalled ${{ steps.installed-dependencies.outputs.count }} dependencies\n\n${{ job.status == 'success' && ':white_check_mark: All dependencies have been successfully installed.' || ':x: Failed to install dependencies.' }}"
+              "text": ":white_check_mark: All dependencies have been successfully installed."
             }
 
-      - name: Notify Slack - Linting
+      - name: Notify Slack - Dependencies Installation Failed
+        if: failure()
         uses: 8398a7/action-slack@v3
         with:
-          status: ${{ job.status }}
+          status: custom
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "text": "*Linting:*\n${{ steps.linting.outputs.flake8_output }}\n\n${{ steps.linting.outputs.flake8_exit_code == 0 && ':white_check_mark: Linting passed successfully.' || ':x: Linting failed with errors.' }}"
+              "text": ":x: Failed to install dependencies."
             }
 
-      - name: Notify Slack - Testing
+      - name: Lint with flake8
+        run: |
+          # stop the build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Notify Slack - Linting Passed
+        if: success()
         uses: 8398a7/action-slack@v3
         with:
-          status: ${{ job.status }}
+          status: custom
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "text": "*Testing:*\n${{ steps.testing.outputs.pytest_output }}\n\n${{ steps.testing.outputs.pytest_exit_code == 0 && ':white_check_mark: All tests passed successfully.' || ':x: Tests failed.' }}"
+              "text": ":white_check_mark: Linting passed successfully."
             }
 
-      - name: Notify Slack - Workflow Status
+      - name: Notify Slack - Linting Failed
+        if: failure()
         uses: 8398a7/action-slack@v3
         with:
-          status: ${{ job.status }}
+          status: custom
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "text": "*${{ github.event_name == 'pull_request' && 'Pull Request' || 'Push' }} Event*\n\n*Action Performer:* ${{ github.actor }}\n*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref }}\n\n*Workflow Status:*\n${{ job.status == 'success' && ':tada: The workflow completed successfully.' || ':x: The workflow failed.' }}"
+              "text": ":x: Linting failed with errors."
+            }
+
+      - name: Check for test files and run pytest if found
+        run: |
+          if compgen -G "tests/test_*.py" > /dev/null; then
+            pytest
+          else
+            echo "No tests found. Skipping pytest."
+          fi
+
+      - name: Notify Slack - Tests Passed
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "text": ":white_check_mark: All tests passed successfully."
+            }
+
+      - name: Notify Slack - Tests Failed
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "text": ":x: Tests failed."
+            }
+
+      - name: Notify Slack - Workflow Succeeded
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "text": ":tada: The workflow completed successfully."
+            }
+
+      - name: Notify Slack - Workflow Failed
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "text": ":x: The workflow failed."
             }
