@@ -1,10 +1,10 @@
 name: Pull Request Approval Workflow
 
 on:
-  pull_request_review:
-    types: [submitted]
   pull_request:
-    types: [review_requested]
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
 
 jobs:
   notify_slack:
@@ -17,8 +17,7 @@ jobs:
         id: current-time
         run: echo "::set-output name=time::$(date +%s)"
 
-      - name: Notify Slack - Pull Request Review Requested
-        if: github.event_name == 'pull_request' && github.event.action == 'review_requested'
+      - name: Notify Slack - Pull Request Opened
         uses: 8398a7/action-slack@v3
         with:
           status: custom
@@ -27,19 +26,24 @@ jobs:
               "attachments": [
                 {
                   "color": "#36a64f",
-                  "pretext": ":eyes: Pull Request Review Requested",
+                  "pretext": ":eyes: Pull Request Opened",
                   "title": "Pull Request #${{ github.event.pull_request.number }}",
                   "title_link": "${{ github.event.pull_request.html_url }}",
                   "text": "${{ github.event.pull_request.title }}",
                   "fields": [
                     {
-                      "title": "Requested by",
+                      "title": "Opened by",
                       "value": "${{ github.event.pull_request.user.login }}",
                       "short": true
                     },
                     {
                       "title": "Repository",
                       "value": "${{ github.repository }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Target Branch",
+                      "value": "${{ github.event.pull_request.base.ref }}",
                       "short": true
                     }
                   ],
@@ -50,19 +54,20 @@ jobs:
               ]
             }
 
-      - name: Check Pull Request Approvals
-        if: github.event_name == 'pull_request_review' && github.event.action == 'submitted'
-        id: check_approvals
+      - name: Wait for Required Approvals
+        id: wait_for_approvals
         run: |
-          approvals=$(gh pr view ${{ github.event.pull_request.number }} --json reviewDecision -q '.reviewDecision' | grep APPROVED | wc -l)
-          if [ $approvals -ge 1 ]; then
-            echo "::set-output name=approved::true"
-          else
-            echo "::set-output name=approved::false"
-          fi
+          approvals=0
+          while [ $approvals -lt 5 ]; do
+            sleep 60
+            approvals=$(gh pr view ${{ github.event.pull_request.number }} --json reviewDecision -q '.reviewDecision' | grep APPROVED | wc -l)
+            echo "Current approvals: $approvals"
+          done
+          echo "Pull Request #${{ github.event.pull_request.number }} has been approved by all required reviewers"
+          echo "::set-output name=approved::true"
 
       - name: Notify Slack - Pull Request Approved
-        if: steps.check_approvals.outputs.approved == 'true'
+        if: steps.wait_for_approvals.outputs.approved == 'true'
         uses: 8398a7/action-slack@v3
         with:
           status: custom
@@ -95,6 +100,7 @@ jobs:
             }
 
       - name: Merge Pull Request
-        if: steps.check_approvals.outputs.approved == 'true'
+        if: steps.wait_for_approvals.outputs.approved == 'true'
         run: |
           gh pr merge ${{ github.event.pull_request.number }} --auto --merge
+          echo "Pull Request #${{ github.event.pull_request.number }} has been merged to the main branch"
