@@ -87,3 +87,5 @@ The application will start, and you can access it through your web browser.
 Contributions to this project are welcome. Please ensure you follow the existing code style and submit your pull requests for review.
 
 Thank you for participating in our project and stay tuned! more is coming!
+
+::
