@@ -16,39 +16,10 @@ jobs:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
     steps:
-      - name: Notify Slack - Job Start
-        uses: act10ns/slack@v2
-        with:
-          status: custom
-          channel: '#project-development'
-          custom_payload: |
-            {
-              "attachments": [
-                {
-                  "color": "#36a64f",
-                  "title": "CI/CD Pipeline",
-                  "text": "Starting Python application build process...",
-                  "fields": [
-                    {
-                      "title": "Branch",
-                      "value": "${{ github.ref }}",
-                      "short": true
-                    },
-                    {
-                      "title": "Action",
-                      "value": "Start",
-                      "short": true
-                    }
-                  ]
-                }
-              ]
-            }
-        if: always()
-
       - uses: actions/checkout@v3
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v4
         with:
           python-version: "3.12"
 
@@ -57,105 +28,76 @@ jobs:
           python -m pip install --upgrade pip
           pip install flake8 pytest
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-
+      - name: Get installed dependencies count
+        id: installed-dependencies
+        run: |
+          count=$(pip list --format=freeze | wc -l)
+          echo "::set-output name=count::$count"
       - name: Lint with flake8
+        id: linting
         run: |
           # stop the build if there are Python syntax errors or undefined names
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8_output=$(flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics)
+          flake8_exit_code=$?
+          echo "::set-output name=flake8_output::$flake8_output"
+          echo "::set-output name=flake8_exit_code::$flake8_exit_code"
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
-      - name: Notify Slack - Lint Completed
-        uses: act10ns/slack@v2
-        with:
-          status: custom
-          channel: '#project-development'
-          custom_payload: |
-            {
-              "attachments": [
-                {
-                  "color": "${{ job.status == 'success' && 'good' || 'danger' }}",
-                  "title": "CI/CD Pipeline",
-                  "text": "Linting completed",
-                  "fields": [
-                    {
-                      "title": "Branch",
-                      "value": "${{ github.ref }}",
-                      "short": true
-                    },
-                    {
-                      "title": "Action",
-                      "value": "Lint",
-                      "short": true
-                    }
-                  ]
-                }
-              ]
-            }
-        if: always()
-
       - name: Check for test files and run pytest if found
+        id: testing
         run: |
           if compgen -G "tests/test_*.py" > /dev/null; then
-            pytest
+            pytest_output=$(pytest)
+            pytest_exit_code=$?
+            echo "::set-output name=pytest_output::$pytest_output"
+            echo "::set-output name=pytest_exit_code::$pytest_exit_code"
           else
             echo "No tests found. Skipping pytest."
+            echo "::set-output name=pytest_output::No tests found."
+            echo "::set-output name=pytest_exit_code::0"
           fi
-
-      - name: Notify Slack - Test Completed
-        uses: act10ns/slack@v2
-        if: always()
+      - name: Notify Slack - Python Setup
+        uses: 8398a7/action-slack@v3
         with:
           status: custom
-          channel: '#project-development'
+          fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "attachments": [
-                {
-                  "color": "${{ job.status == 'success' && 'good' || 'danger' }}",
-                  "title": "CI/CD Pipeline",
-                  "text": "Testing completed",
-                  "fields": [
-                    {
-                      "title": "Branch",
-                      "value": "${{ github.ref }}",
-                      "short": true
-                    },
-                    {
-                      "title": "Action",
-                      "value": "Test",
-                      "short": true
-                    }
-                  ]
-                }
-              ]
+              "text": ":python: Python 3.12 has been set up for the workflow."
             }
-
-      - name: Notify Slack - Job Finished
-        uses: act10ns/slack@v2
-        if: always()
+      - name: Notify Slack - Dependencies
+        uses: 8398a7/action-slack@v3
         with:
-          status: custom
-          channel: '#project-development'
+          status: ${{ job.status }}
+          fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "attachments": [
-                {
-                  "color": "${{ job.status == 'success' && 'good' || 'danger' }}",
-                  "title": "CI/CD Pipeline",
-                  "text": "Build process completed",
-                  "fields": [
-                    {
-                      "title": "Branch",
-                      "value": "${{ github.ref }}",
-                      "short": true
-                    },
-                    {
-                    "title": "Action",
-                    "value": "Build",
-                    "short": true
-                    }
-                    ]
-                    }
-                    ]
-                }
+              "text": "*Dependencies:*\nInstalled ${{ steps.installed-dependencies.outputs.count }} dependencies\n\n${{ job.status == 'success' && ':white_check_mark: All dependencies have been successfully installed.' || ':x: Failed to install dependencies.' }}"
+            }
+      - name: Notify Slack - Linting
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "text": "*Linting:*\n${{ steps.linting.outputs.flake8_output }}\n\n${{ steps.linting.outputs.flake8_exit_code == 0 && ':white_check_mark: Linting passed successfully.' || ':x: Linting failed with errors.' }}"
+            }
+      - name: Notify Slack - Testing
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "text": "*Testing:*\n${{ steps.testing.outputs.pytest_output }}\n\n${{ steps.testing.outputs.pytest_exit_code == 0 && ':white_check_mark: All tests passed successfully.' || ':x: Tests failed.' }}"
+            }
+      - name: Notify Slack - Workflow Status
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "text": "*${{ github.event_name == 'pull_request' && 'Pull Request' || 'Push' }} Event*\n\n*Action Performer:* ${{ github.actor }}\n*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref }}\n\n*Workflow Status:*\n${{ job.status == 'success' && ':tada: The workflow completed successfully.' || ':x: The workflow failed.' }}"
+            }
