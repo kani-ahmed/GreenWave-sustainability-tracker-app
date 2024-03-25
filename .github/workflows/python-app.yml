@@ -2,9 +2,9 @@ name: Python application with Slack notifications
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "deploy-to-heroku" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "deploy-to-heroku" ]
 
 permissions:
   contents: read
