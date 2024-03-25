@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Slack configuration
+# Slack configurations
 SLACK_CHANNEL_ID = os.getenv('SLACK_CHANNEL_ID')
 SLACK_BOT_TOKEN = os.getenv('SLACK_BOT_TOKEN')
 

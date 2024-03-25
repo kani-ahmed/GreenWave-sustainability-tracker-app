@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       prNumber:
-        description: 'Pull Request Number to Merge into Main Branch'
+        description: 'Pull Request Number to Merge into main Branch'
         required: true
 
 jobs:
@@ -14,7 +14,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          ref: main # Updated to target the main branch
+          ref: main # Updated to target the main branch (you can assign any part of choice for merging)
 
       - name: Merge Pull Request
         env:
