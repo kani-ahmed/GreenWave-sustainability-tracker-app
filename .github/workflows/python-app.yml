@@ -17,6 +17,16 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Notify Slack on Action
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "text": ":rocket: ${{ github.event_name }} event triggered by ${{ github.actor }} on repository ${{ github.repository }} for branch ${{ github.ref_name }}."
+            }
+
       - name: Set up Python 3.12
         uses: actions/setup-python@v4
         with:
@@ -57,16 +67,6 @@ jobs:
           custom_payload: |
             {
               "text": ":x: Failed to install dependencies."
-            }
-
-      - name: Notify Slack on Action
-        uses: 8398a7/action-slack@v3
-        with:
-          status: custom
-          fields: workflow,job,commit,ref,author,took
-          custom_payload: |
-            {
-              "text": ":rocket: ${{ github.event_name }} event triggered by ${{ github.actor }} on repository ${{ github.repository }} for branch ${{ github.ref_name }}."
             }
 
       - name: Lint with flake8
