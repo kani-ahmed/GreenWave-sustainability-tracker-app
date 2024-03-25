@@ -17,6 +17,9 @@ jobs:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
       - name: Notify Slack - Pull Request Opened
         if: github.event_name == 'pull_request' && github.event.action == 'opened'
         run: |
