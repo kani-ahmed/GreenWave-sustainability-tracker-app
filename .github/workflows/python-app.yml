@@ -33,7 +33,7 @@ jobs:
         id: installed-dependencies
         run: |
           count=$(pip list --format=freeze | wc -l)
-          echo "::set-output name=count::$count"
+          echo "count=$count" >> $GITHUB_OUTPUT
 
       - name: Lint with flake8
         id: linting
@@ -41,8 +41,10 @@ jobs:
           # stop the build if there are Python syntax errors or undefined names
           flake8_output=$(flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics)
           flake8_exit_code=$?
-          echo "::set-output name=flake8_output::$flake8_output"
-          echo "::set-output name=flake8_exit_code::$flake8_exit_code"
+          echo "flake8_output<<EOF" >> $GITHUB_OUTPUT
+          echo "$flake8_output" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "flake8_exit_code=$flake8_exit_code" >> $GITHUB_OUTPUT
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
@@ -52,60 +54,22 @@ jobs:
           if compgen -G "tests/test_*.py" > /dev/null; then
             pytest_output=$(pytest)
             pytest_exit_code=$?
-            echo "::set-output name=pytest_output::$pytest_output"
-            echo "::set-output name=pytest_exit_code::$pytest_exit_code"
+            echo "pytest_output<<EOF" >> $GITHUB_OUTPUT
+            echo "$pytest_output" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            echo "pytest_exit_code=$pytest_exit_code" >> $GITHUB_OUTPUT
           else
             echo "No tests found. Skipping pytest."
-            echo "::set-output name=pytest_output::No tests found."
-            echo "::set-output name=pytest_exit_code::0"
+            echo "pytest_output=No tests found." >> $GITHUB_OUTPUT
+            echo "pytest_exit_code=0" >> $GITHUB_OUTPUT
           fi
 
-      - name: Notify Slack - Python Setup
-        uses: 8398a7/action-slack@v3
-        with:
-          status: custom
-          fields: workflow,job,commit,ref,author,took
-          custom_payload: |
-            {
-              "text": ":python: Python 3.12 has been set up for the workflow."
-            }
-
-      - name: Notify Slack - Dependencies
+      - name: Notify Slack
         uses: 8398a7/action-slack@v3
         with:
           status: ${{ job.status }}
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "text": "*Dependencies:*\nInstalled ${{ steps.installed-dependencies.outputs.count }} dependencies\n\n${{ job.status == 'success' && ':white_check_mark: All dependencies have been successfully installed.' || ':x: Failed to install dependencies.' }}"
-            }
-
-      - name: Notify Slack - Linting
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          fields: workflow,job,commit,ref,author,took
-          custom_payload: |
-            {
-              "text": "*Linting:*\n${{ steps.linting.outputs.flake8_output }}\n\n${{ steps.linting.outputs.flake8_exit_code == 0 && ':white_check_mark: Linting passed successfully.' || ':x: Linting failed with errors.' }}"
-            }
-
-      - name: Notify Slack - Testing
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          fields: workflow,job,commit,ref,author,took
-          custom_payload: |
-            {
-              "text": "*Testing:*\n${{ steps.testing.outputs.pytest_output }}\n\n${{ steps.testing.outputs.pytest_exit_code == 0 && ':white_check_mark: All tests passed successfully.' || ':x: Tests failed.' }}"
-            }
-
-      - name: Notify Slack - Workflow Status
-        uses: 8398a7/action-slack@v3
-        with:
-          status: ${{ job.status }}
-          fields: workflow,job,commit,ref,author,took
-          custom_payload: |
-            {
-              "text": "*${{ github.event_name == 'pull_request' && 'Pull Request' || 'Push' }} Event*\n\n*Action Performer:* ${{ github.actor }}\n*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref }}\n\n*Workflow Status:*\n${{ job.status == 'success' && ':tada: The workflow completed successfully.' || ':x: The workflow failed.' }}"
+              "text": "*${{ github.event_name == 'pull_request' && 'Pull Request' || 'Push' }} Event*\n\n*Action Performer:* ${{ github.actor }}\n*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref }}\n\n*Python Setup:*\n:python: Python 3.12 has been set up for the workflow.\n\n*Dependencies:*\nInstalled ${{ steps.installed-dependencies.outputs.count }} dependencies\n${{ job.status == 'success' && ':white_check_mark: All dependencies have been successfully installed.' || ':x: Failed to install dependencies.' }}\n\n*Linting:*\n```\n${{ steps.linting.outputs.flake8_output }}\n```\n${{ steps.linting.outputs.flake8_exit_code == 0 && ':white_check_mark: Linting passed successfully.' || ':x: Linting failed with errors.' }}\n\n*Testing:*\n```\n${{ steps.testing.outputs.pytest_output }}\n```\n${{ steps.testing.outputs.pytest_exit_code == 0 && ':white_check_mark: All tests passed successfully.' || ':x: Tests failed.' }}\n\n*Workflow Status:*\n${{ job.status == 'success' && ':tada: The workflow completed successfully.' || ':x: The workflow failed.' }}"
             }
