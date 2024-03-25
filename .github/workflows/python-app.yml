@@ -1,4 +1,4 @@
-name: Python application with Slack notifications
+name: backend-testing-and-deployment-script
 
 on:
   push:
