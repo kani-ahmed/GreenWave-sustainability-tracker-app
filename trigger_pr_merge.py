@@ -36,7 +36,6 @@ def find_latest_pr_opened_message(channel_id):
     if response.status_code == 200:
         messages = response.json().get("messages", [])
         for message in messages:
-            print(message)
             if "text" in message and "Pull Request Opened" in message["text"]:
                 return message
             if "attachments" in message:
@@ -53,7 +52,6 @@ def get_reaction_count(message_ts, channel_id):
     response = requests.get(REACTIONS_GET_URL, headers=slack_headers, params=params)
     if response.status_code == 200:
         data = response.json()
-        print(data)
         reactions = data.get('message', {}).get('reactions', [])
         for reaction in reactions:
             if reaction['name'] == '+1':
@@ -61,11 +59,11 @@ def get_reaction_count(message_ts, channel_id):
     return 0
 
 
-def trigger_github_workflow(thumbs_up_count):
+def trigger_github_workflow(pr_number):
     data = {
         "ref": "main",
         "inputs": {
-            "reactionCount": str(thumbs_up_count)
+            "prNumber": str(pr_number)
         }
     }
     response = requests.post(GITHUB_DISPATCH_URL, headers=github_headers, json=data)
@@ -75,20 +73,31 @@ def trigger_github_workflow(thumbs_up_count):
         print(f"Failed to trigger the GitHub workflow. Status: {response.status_code}, Response: {response.text}")
 
 
-def continuously_check_reactions(threshold=5):
+def continuously_check_reactions(threshold=1):
     while True:
         latest_pr_message = find_latest_pr_opened_message(SLACK_CHANNEL_ID)
         if latest_pr_message:
             message_id = latest_pr_message.get("ts")
             thumbs_up_count = get_reaction_count(message_id, SLACK_CHANNEL_ID)
-            # print
             print(f"Thumbs-up reaction count: {thumbs_up_count}")
             if thumbs_up_count >= threshold:
-                trigger_github_workflow(thumbs_up_count)
-                break  # Remove or adjust this line based on desired behavior (continuous check vs. one-time trigger)
+                pr_number = extract_pr_number(latest_pr_message)
+                if pr_number:
+                    trigger_github_workflow(pr_number)
+                    break
+                else:
+                    print("Failed to extract pull request number from the message.")
         else:
             print("No 'Pull Request Opened' message found in the channel.")
-        time.sleep(10)  # Check every 60 seconds, adjust as needed
+        time.sleep(10)
+
+
+def extract_pr_number(message):
+    if "attachments" in message:
+        for attachment in message["attachments"]:
+            if "title" in attachment and "Pull Request #" in attachment["title"]:
+                return attachment["title"].split("#")[1]
+    return None
 
 
 if __name__ == "__main__":
