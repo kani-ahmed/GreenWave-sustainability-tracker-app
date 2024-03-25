@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       prNumber:
-        description: 'Pull Request Number to Merge'
+        description: 'Pull Request Number to Merge to main'
         required: true
 
 jobs:
