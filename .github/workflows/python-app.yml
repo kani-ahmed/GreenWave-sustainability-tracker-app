@@ -1,4 +1,4 @@
-name: Python application with Enhanced Slack notifications
+name: Python application with Slack notifications
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: Set up Python 3.12
         uses: actions/setup-python@v4
         with:
           python-version: "3.12"
@@ -26,48 +26,32 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          deps_count=$(pip freeze | wc -l)
           pip install flake8 pytest
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          new_deps_count=$(pip freeze | wc -l)
-          echo "INSTALLED_DEPENDENCIES=$((new_deps_count - deps_count))" >> $GITHUB_ENV
 
       - name: Lint with flake8
         run: |
+          # stop the build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-        continue-on-error: true
 
-      - name: Run pytest
-        id: pytest
-        run: pytest || echo "::set-output name=failed::true"
-
-      - name: Compile Notification Message
-        id: compile_message
+      - name: Check for test files and run pytest if found
         run: |
-          message="Action type: ${{ github.event_name }}\n"
-          message+="Action Performer: ${{ github.actor }}\n"
-          message+="repo name: ${{ github.repository }}\n"
-          message+="branch name: ${{ github.ref_name }}\n"
-          message+="All dependencies installed: ${{ env.INSTALLED_DEPENDENCIES }} dependencies\n"
-          if [ "${{ steps.pytest.outputs.failed }}" == "true" ]; then
-            message+="Tests: Some tests failed\n"
+          if compgen -G "tests/test_*.py" > /dev/null; then
+            pytest
           else
-            message+="Tests: All tests passed\n"
+            echo "No tests found. Skipping pytest."
           fi
-          if [ ${{ job.status }} == "success" ]; then
-            message+="Workflow status: succeeded\n"
-          else
-            message+="Workflow status: failed\n"
-          fi
-          echo "::set-output name=message::$message"
 
       - name: Notify Slack
-        if: always()
         uses: 8398a7/action-slack@v3
         with:
-          status: custom
-          fields: workflow,job,commit,ref,author,took
-          custom_payload: |
-            {
-              "text": "${{ steps.compile_message.outputs.message }}"
-            }
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,action,eventName,ref,workflow,job,took
+          author_name: GitHub Actions
+          mention: here
+          if_mention: failure,cancelled
+          job_name: Build and Test
+          channel: '#project-development'
+        if: always()
