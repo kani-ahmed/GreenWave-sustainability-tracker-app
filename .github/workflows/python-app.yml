@@ -1,4 +1,4 @@
-name: backend-testing-and-deployment-script
+name: Python application with Slack notifications
 
 on:
   push:
@@ -24,17 +24,7 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "attachments": [
-                {
-                  "color": "#36a64f",
-                  "pretext": ":rocket: ${{ github.event_name }} event triggered",
-                  "title": "${{ github.repository }}",
-                  "text": "Triggered by ${{ github.actor }} on branch ${{ github.ref_name }}",
-                  "footer": "GitHub Actions",
-                  "footer_icon": "https://github.githubassets.com/favicon.ico",
-                  "ts": ${{ steps.current-time.outputs.time }}
-                }
-              ]
+              "text": ":rocket: ${{ github.event_name }} event triggered by ${{ github.actor }} on repository ${{ github.repository }} for branch ${{ github.ref_name }}."
             }
 
       - name: Set up Python 3.12
@@ -49,17 +39,7 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "attachments": [
-                {
-                  "color": "#36a64f",
-                  "pretext": ":python: Python 3.12 has been set up",
-                  "title": "Python Setup",
-                  "text": "Python 3.12 has been successfully set up for the workflow.",
-                  "footer": "GitHub Actions",
-                  "footer_icon": "https://github.githubassets.com/favicon.ico",
-                  "ts": ${{ steps.current-time.outputs.time }}
-                }
-              ]
+              "text": ":python: Python 3.12 has been set up for the workflow."
             }
 
       - name: Install dependencies
@@ -68,7 +48,6 @@ jobs:
           pip install flake8 pytest
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         id: install-dependencies
-
       - name: Notify Slack - Dependencies Installed
         if: success()
         uses: 8398a7/action-slack@v3
@@ -77,19 +56,8 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "attachments": [
-                {
-                  "color": "#36a64f",
-                  "pretext": ":white_check_mark: Dependencies installed",
-                  "title": "Dependency Installation",
-                  "text": "All dependencies have been successfully installed.",
-                  "footer": "GitHub Actions",
-                  "footer_icon": "https://github.githubassets.com/favicon.ico",
-                  "ts": ${{ steps.current-time.outputs.time }}
-                }
-              ]
+              "text": ":white_check_mark: All dependencies have been successfully installed."
             }
-
       - name: Notify Slack - Dependencies Installation Failed
         if: failure()
         uses: 8398a7/action-slack@v3
@@ -98,17 +66,7 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "attachments": [
-                {
-                  "color": "#ff0000",
-                  "pretext": ":x: Dependencies installation failed",
-                  "title": "Dependency Installation",
-                  "text": "Failed to install dependencies. Please check the logs for more details.",
-                  "footer": "GitHub Actions",
-                  "footer_icon": "https://github.githubassets.com/favicon.ico",
-                  "ts": ${{ steps.current-time.outputs.time }}
-                }
-              ]
+              "text": ":x: Failed to install dependencies."
             }
 
       - name: Lint with flake8
@@ -118,7 +76,6 @@ jobs:
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
         id: lint
-
       - name: Notify Slack - Linting Passed
         if: success()
         uses: 8398a7/action-slack@v3
@@ -127,19 +84,8 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "attachments": [
-                {
-                  "color": "#36a64f",
-                  "pretext": ":white_check_mark: Linting passed",
-                  "title": "Linting",
-                  "text": "Linting passed successfully.",
-                  "footer": "GitHub Actions",
-                  "footer_icon": "https://github.githubassets.com/favicon.ico",
-                  "ts": ${{ steps.current-time.outputs.time }}
-                }
-              ]
+              "text": ":white_check_mark: Linting passed successfully."
             }
-
       - name: Notify Slack - Linting Failed
         if: failure()
         uses: 8398a7/action-slack@v3
@@ -148,17 +94,7 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "attachments": [
-                {
-                  "color": "#ff0000",
-                  "pretext": ":x: Linting failed",
-                  "title": "Linting",
-                  "text": "Linting failed with errors. Please check the logs for more details.",
-                  "footer": "GitHub Actions",
-                  "footer_icon": "https://github.githubassets.com/favicon.ico",
-                  "ts": ${{ steps.current-time.outputs.time }}
-                }
-              ]
+              "text": ":x: Linting failed with errors."
             }
 
       - name: Check for test files and run pytest if found
@@ -169,7 +105,6 @@ jobs:
             echo "No tests found. Skipping pytest."
           fi
         id: tests
-
       - name: Notify Slack - Tests Passed
         if: success()
         uses: 8398a7/action-slack@v3
@@ -178,19 +113,8 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "attachments": [
-                {
-                  "color": "#36a64f",
-                  "pretext": ":white_check_mark: Tests passed",
-                  "title": "Testing",
-                  "text": "All tests passed successfully.",
-                  "footer": "GitHub Actions",
-                  "footer_icon": "https://github.githubassets.com/favicon.ico",
-                  "ts": ${{ steps.current-time.outputs.time }}
-                }
-              ]
+              "text": ":white_check_mark: All tests passed successfully."
             }
-
       - name: Notify Slack - Tests Failed
         if: failure()
         uses: 8398a7/action-slack@v3
@@ -199,50 +123,7 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "attachments": [
-                {
-                  "color": "#ff0000",
-                  "pretext": ":x: Tests failed",
-                  "title": "Testing",
-                  "text": "Tests failed. Please check the logs for more details.",
-                  "footer": "GitHub Actions",
-                  "footer_icon": "https://github.githubassets.com/favicon.ico",
-                  "ts": ${{ steps.current-time.outputs.time }}
-                }
-              ]
-            }
-
-      - name: Notify Slack - Deployment
-        if: success()
-        uses: 8398a7/action-slack@v3
-        with:
-          status: custom
-          fields: workflow,job,commit,ref,author,took
-          custom_payload: |
-            {
-              "attachments": [
-                {
-                  "color": "#36a64f",
-                  "pretext": ":rocket: Deployment completed",
-                  "title": "Deployment",
-                  "text": "The application has been successfully deployed.",
-                  "fields": [
-                    {
-                      "title": "Repository",
-                      "value": "${{ github.repository }}",
-                      "short": true
-                    },
-                    {
-                      "title": "Commit",
-                      "value": "${{ github.sha }}",
-                      "short": true
-                    }
-                  ],
-                  "footer": "GitHub Actions",
-                  "footer_icon": "https://github.githubassets.com/favicon.ico",
-                  "ts": ${{ steps.current-time.outputs.time }}
-                }
-              ]
+              "text": ":x: Tests failed."
             }
 
       - name: Notify Slack - Workflow Succeeded
@@ -253,19 +134,8 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "attachments": [
-                {
-                  "color": "#36a64f",
-                  "pretext": ":tada: Workflow completed successfully",
-                  "title": "Workflow",
-                  "text": "The workflow completed successfully. All steps passed without any errors.",
-                  "footer": "GitHub Actions",
-                  "footer_icon": "https://github.githubassets.com/favicon.ico",
-                  "ts": ${{ steps.current-time.outputs.time }}
-                }
-              ]
+              "text": ":tada: The workflow completed successfully. All steps passed without any errors."
             }
-
       - name: Notify Slack - Workflow Failed
         if: failure()
         uses: 8398a7/action-slack@v3
@@ -274,15 +144,5 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "attachments": [
-                {
-                  "color": "#ff0000",
-                  "pretext": ":x: Workflow failed",
-                  "title": "Workflow",
-                  "text": "The workflow failed. Please check the logs for more details.",
-                  "footer": "GitHub Actions",
-                  "footer_icon": "https://github.githubassets.com/favicon.ico",
-                  "ts": ${{ steps.current-time.outputs.time }}
-                }
-              ]
+              "text": ":x: The workflow failed. Please check the logs for more details."
             }
