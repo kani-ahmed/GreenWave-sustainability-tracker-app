@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
-      - PR-Approval-with-Emoji
+      - main # Updated to target the main branch
 
 jobs:
   notify_slack:
@@ -17,7 +17,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          ref: PR-Approval-with-Emoji
+          ref: main # Updated to target the main branch
 
       - name: Get current time
         id: current-time
