@@ -56,11 +56,15 @@ jobs:
 
       - name: Wait for Required Approvals
         id: wait_for_approvals
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
           approvals=0
+          message_ts=$(cat $GITHUB_EVENT_PATH | jq -r '.message.ts')
           while [ $approvals -lt 1 ]; do
             sleep 60
-            approvals=$(gh pr view ${{ github.event.pull_request.number }} --json reviewDecision -q '.reviewDecision' | grep APPROVED | wc -l)
+            reaction_count=$(curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" "https://slack.com/api/reactions.get?channel=$SLACK_CHANNEL&timestamp=$message_ts" | jq '.message.reactions[] | select(.name=="thumbsup") | .count')
+            approvals=$((reaction_count))
             echo "Current approvals: $approvals"
           done
           echo "Pull Request #${{ github.event.pull_request.number }} has been approved by all required reviewers"
