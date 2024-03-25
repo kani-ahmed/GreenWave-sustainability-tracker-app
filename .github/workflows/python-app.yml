@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - '**'
-  pull_request:
-    branches:
-      - '**'
 
 permissions:
   contents: read
@@ -40,6 +37,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install flake8 pytest
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        id: install-dependencies
       - name: Notify Slack - Dependencies Installed
         if: success()
         uses: 8398a7/action-slack@v3
@@ -48,7 +46,7 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "text": ":white_check_mark: All dependencies have been successfully installed. Installed ${{ steps.install-dependencies.outputs.installed }}/x dependencies."
+              "text": ":white_check_mark: All dependencies have been successfully installed."
             }
       - name: Notify Slack - Dependencies Installation Failed
         if: failure()
@@ -68,7 +66,7 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "text": ":rocket: ${{ github.event_name }} event triggered by ${{ github.actor }} on repository ${{ github.repository }} for branch ${{ github.ref }}."
+              "text": ":rocket: ${{ github.event_name }} event triggered by ${{ github.actor }} on repository ${{ github.repository }} for branch ${{ github.ref_name }}."
             }
 
       - name: Lint with flake8
@@ -77,6 +75,7 @@ jobs:
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        id: lint
       - name: Notify Slack - Linting Passed
         if: success()
         uses: 8398a7/action-slack@v3
@@ -85,7 +84,7 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "text": ":white_check_mark: Linting passed successfully. All ${{ steps.lint.outputs.total_files }}/x files passed linting."
+              "text": ":white_check_mark: Linting passed successfully."
             }
       - name: Notify Slack - Linting Failed
         if: failure()
@@ -95,7 +94,7 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "text": ":x: Linting failed with errors in ${{ steps.lint.outputs.failed_files }}/y files."
+              "text": ":x: Linting failed with errors."
             }
 
       - name: Check for test files and run pytest if found
@@ -105,6 +104,7 @@ jobs:
           else
             echo "No tests found. Skipping pytest."
           fi
+        id: tests
       - name: Notify Slack - Tests Passed
         if: success()
         uses: 8398a7/action-slack@v3
@@ -113,7 +113,7 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "text": ":white_check_mark: All ${{ steps.tests.outputs.passed_tests }}/x tests passed successfully."
+              "text": ":white_check_mark: All tests passed successfully."
             }
       - name: Notify Slack - Tests Failed
         if: failure()
@@ -123,7 +123,7 @@ jobs:
           fields: workflow,job,commit,ref,author,took
           custom_payload: |
             {
-              "text": ":x: ${{ steps.tests.outputs.failed_tests }}/y tests failed."
+              "text": ":x: Tests failed."
             }
 
       - name: Notify Slack - Workflow Succeeded
