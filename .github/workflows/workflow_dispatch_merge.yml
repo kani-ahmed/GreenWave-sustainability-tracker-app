@@ -8,7 +8,7 @@ on:
         required: true
 
 jobs:
-  merge_pull_request:
+  check-and-merge:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -26,42 +26,43 @@ jobs:
           PR_BRANCH=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
             "https://api.github.com/repos/$REPO_NAME/pulls/$PR_NUMBER" | jq -r '.head.ref')
           
+          echo "PR_BRANCH: $PR_BRANCH"
           if [ -z "$PR_BRANCH" ]; then
             echo "Pull Request #$PR_NUMBER not found in the repository."
             exit 1
           fi
           
-          WORKFLOW_RUNS=$(curl -H "Authorization: Bearer $GITHUB_TOKEN" \
+          WORKFLOW_RUNS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
             "https://api.github.com/repos/$REPO_NAME/actions/runs?event=pull_request&branch=$PR_BRANCH")
           
-          # Wait for all required workflows to complete successfully
-          REQUIRED_WORKFLOWS=("CodeQL") # Add the names of the required workflows
+          REQUIRED_WORKFLOWS=("CodeQL") # Add other workflow names here if necessary
           for WORKFLOW_NAME in "${REQUIRED_WORKFLOWS[@]}"; do
-            RUN_ID=$(echo $WORKFLOW_RUNS | jq -r '.workflow_runs[] | select(.name == "'$WORKFLOW_NAME'") | .id')
+            echo "Checking workflow: $WORKFLOW_NAME"
+            RUN_ID=$(echo $WORKFLOW_RUNS | jq -r --arg WORKFLOW_NAME "$WORKFLOW_NAME" '.workflow_runs[] | select(.name == $WORKFLOW_NAME) | .id')
+            echo "RUN_ID for $WORKFLOW_NAME: $RUN_ID"
             if [ -z "$RUN_ID" ]; then
-              echo "Workflow run for $WORKFLOW_NAME not found for PR #$PR_NUMBER."
+              echo "Workflow run for $WORKFLOW_NAME not found for PR #$PR_NUMBER on branch $PR_BRANCH."
               exit 1
             fi
             
             STATUS="queued"
             while [[ "$STATUS" == "queued" || "$STATUS" == "in_progress" ]]; do
               sleep 15
-              RUN_STATUS=$(curl -H "Authorization: Bearer $GITHUB_TOKEN" \
+              RUN_STATUS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
                 "https://api.github.com/repos/$REPO_NAME/actions/runs/$RUN_ID")
               STATUS=$(echo $RUN_STATUS | jq -r '.status')
               CONCLUSION=$(echo $RUN_STATUS | jq -r '.conclusion')
+              
+              if [[ "$STATUS" == "completed" && "$CONCLUSION" != "success" ]]; then
+                echo "Workflow $WORKFLOW_NAME did not complete successfully for PR #$PR_NUMBER."
+                exit 1
+              fi
             done
-            
-            if [ "$CONCLUSION" != "success" ]; then
-              echo "Workflow $WORKFLOW_NAME did not complete successfully for PR #$PR_NUMBER."
-              exit 1
-            fi
           done
-          
           echo "All required workflows completed successfully for PR #$PR_NUMBER."
 
       - name: Merge Pull Request
-        if: steps.check_status.conclusion == 'success'
+        if: ${{ success() }}
         env:
           PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
