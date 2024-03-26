@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
-      - main # Updated to target the main branch
+      - main # Updated to target the main branch (you can assign any part of choice for merging)
 
 jobs:
   notify_slack:
