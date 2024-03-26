@@ -19,34 +19,38 @@ jobs:
       - name: Check Workflows Status
         id: check_status
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This can be a PAT as well
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER=${{ github.event.inputs.prNumber }}
           REPO_NAME="${{ github.repository }}"
           WORKFLOW_RUNS=$(curl -H "Authorization: Bearer $GITHUB_TOKEN" \
             "https://api.github.com/repos/$REPO_NAME/actions/runs?event=pull_request&branch=main")
-          # Assuming you have a specific workflow you want to check, like "CI Workflow"
-          # Adjust the jq filter path according to your workflow's name
-          RUN_ID=$(echo $WORKFLOW_RUNS | jq -r '.workflow_runs[] | select(.name == "CI Workflow" and .head_branch == "PR-'$PR_NUMBER'") | .id')
-          if [ -z "$RUN_ID" ]; then
-            echo "Workflow run for PR #$PR_NUMBER not found."
-            exit 1
-          fi
-
-          # Poll the API to wait for the workflow run to complete
-          STATUS="queued"
-          while [[ "$STATUS" == "queued" || "$STATUS" == "in_progress" ]]; do
-            sleep 15
-            RUN_STATUS=$(curl -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "https://api.github.com/repos/$REPO_NAME/actions/runs/$RUN_ID")
-            STATUS=$(echo $RUN_STATUS | jq -r '.status')
-            CONCLUSION=$(echo $RUN_STATUS | jq -r '.conclusion')
+          
+          # Wait for all required workflows to complete successfully
+          REQUIRED_WORKFLOWS=("CodeQL") # Add the names of the required workflows
+          for WORKFLOW_NAME in "${REQUIRED_WORKFLOWS[@]}"; do
+            RUN_ID=$(echo $WORKFLOW_RUNS | jq -r '.workflow_runs[] | select(.name == "'$WORKFLOW_NAME'" and .head_branch == "PR-'$PR_NUMBER'") | .id')
+            if [ -z "$RUN_ID" ]; then
+              echo "Workflow run for $WORKFLOW_NAME not found for PR #$PR_NUMBER."
+              exit 1
+            fi
+            
+            STATUS="queued"
+            while [[ "$STATUS" == "queued" || "$STATUS" == "in_progress" ]]; do
+              sleep 15
+              RUN_STATUS=$(curl -H "Authorization: Bearer $GITHUB_TOKEN" \
+                "https://api.github.com/repos/$REPO_NAME/actions/runs/$RUN_ID")
+              STATUS=$(echo $RUN_STATUS | jq -r '.status')
+              CONCLUSION=$(echo $RUN_STATUS | jq -r '.conclusion')
+            done
+            
+            if [ "$CONCLUSION" != "success" ]; then
+              echo "Workflow $WORKFLOW_NAME did not complete successfully for PR #$PR_NUMBER."
+              exit 1
+            fi
           done
-
-          if [ "$CONCLUSION" != "success" ]; then
-            echo "Workflow did not complete successfully."
-            exit 1
-          fi
+          
+          echo "All required workflows completed successfully for PR #$PR_NUMBER."
 
       - name: Merge Pull Request
         if: steps.check_status.conclusion == 'success'
@@ -56,5 +60,5 @@ jobs:
           PR_NUMBER=${{ github.event.inputs.prNumber }}
           curl -X PUT -H "Authorization: Bearer $PAT_TOKEN" \
           "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER/merge" \
-          -d '{"merge_method":"squash"}' # Adjust merge method as needed
+          -d '{"merge_method":"squash"}'
           echo "Pull Request #$PR_NUMBER has been merged into the main branch."
