@@ -1,9 +1,11 @@
+# trigger_pr_merge.py
+
 import requests
 import time
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+# load_dotenv()
 
 # Slack configurations
 SLACK_CHANNEL_ID = os.getenv('SLACK_CHANNEL_ID')
