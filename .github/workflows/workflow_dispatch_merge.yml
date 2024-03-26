@@ -23,13 +23,21 @@ jobs:
         run: |
           PR_NUMBER=${{ github.event.inputs.prNumber }}
           REPO_NAME="${{ github.repository }}"
+          PR_BRANCH=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$REPO_NAME/pulls/$PR_NUMBER" | jq -r '.head.ref')
+          
+          if [ -z "$PR_BRANCH" ]; then
+            echo "Pull Request #$PR_NUMBER not found in the repository."
+            exit 1
+          fi
+          
           WORKFLOW_RUNS=$(curl -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$REPO_NAME/actions/runs?event=pull_request&branch=main")
+            "https://api.github.com/repos/$REPO_NAME/actions/runs?event=pull_request&branch=$PR_BRANCH")
           
           # Wait for all required workflows to complete successfully
           REQUIRED_WORKFLOWS=("CodeQL") # Add the names of the required workflows
           for WORKFLOW_NAME in "${REQUIRED_WORKFLOWS[@]}"; do
-            RUN_ID=$(echo $WORKFLOW_RUNS | jq -r '.workflow_runs[] | select(.name == "'$WORKFLOW_NAME'" and .head_branch == "PR-'$PR_NUMBER'") | .id')
+            RUN_ID=$(echo $WORKFLOW_RUNS | jq -r '.workflow_runs[] | select(.name == "'$WORKFLOW_NAME'") | .id')
             if [ -z "$RUN_ID" ]; then
               echo "Workflow run for $WORKFLOW_NAME not found for PR #$PR_NUMBER."
               exit 1
