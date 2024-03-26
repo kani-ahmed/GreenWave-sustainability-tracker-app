@@ -31,29 +31,25 @@ jobs:
             {
               "attachments": [
                 {
-                  "color": "#1E90FF",
+                  "color": "#36a64f",
                   "pretext": ":eyes: Pull Request Opened",
-                  "title": "<${{ github.event.pull_request.html_url }}|Pull Request #${{ github.event.pull_request.number }}> from <https://github.com/${{ github.repository }}/tree/${{ github.event.pull_request.head.ref }}|${{ github.event.pull_request.head.ref }}>",
+                  "title": "Pull Request #${{ github.event.pull_request.number }}",
+                  "title_link": "${{ github.event.pull_request.html_url }}",
                   "text": "${{ github.event.pull_request.title }}",
                   "fields": [
                     {
                       "title": "Opened by",
-                      "value": "<https://github.com/${{ github.event.pull_request.user.login }}|${{ github.event.pull_request.user.login }}>",
+                      "value": "${{ github.event.pull_request.user.login }}",
                       "short": true
                     },
                     {
                       "title": "Repository",
-                      "value": "<${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}>",
+                      "value": "${{ github.repository }}",
                       "short": true
                     },
                     {
                       "title": "Target Branch",
                       "value": "${{ github.event.pull_request.base.ref }}",
-                      "short": true
-                    },
-                    {
-                      "title": "Source Branch",
-                      "value": "<https://github.com/${{ github.repository }}/tree/${{ github.event.pull_request.head.ref }}|${{ github.event.pull_request.head.ref }}>",
                       "short": true
                     }
                   ],
