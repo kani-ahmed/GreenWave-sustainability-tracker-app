@@ -6,7 +6,7 @@ import os
 import threading
 from dotenv import load_dotenv
 
-load_dotenv()  # only needed locally Heroku does not need it
+# load_dotenv()  # only needed locally Heroku does not need it
 
 # Slack configurations
 SLACK_CHANNEL_ID = os.getenv('SLACK_CHANNEL_ID')
