@@ -3,9 +3,10 @@
 import requests
 import time
 import os
+import threading
 from dotenv import load_dotenv
 
-# load_dotenv()
+load_dotenv()  # only needed locally Heroku does not need it
 
 # Slack configurations
 SLACK_CHANNEL_ID = os.getenv('SLACK_CHANNEL_ID')
@@ -31,9 +32,134 @@ github_headers = {
     "Accept": "application/vnd.github.v3+json"
 }
 
+# File to track processed PR numbers
+PROCESSED_PR_FILE = "processed_pr_numbers.txt"
 
-def find_latest_pr_opened_message(channel_id):
-    params = {"channel": channel_id, "limit": 100}
+
+# creates file if it does not exist for processed PR numbers and their timestamps
+def create_processed_pr_file():
+    if not os.path.exists(PROCESSED_PR_FILE):
+        with open(PROCESSED_PR_FILE, "w") as file:
+            file.write("")
+
+
+# call create_processed_pr_file to create the file if it does not exist
+create_processed_pr_file()
+
+
+# method to check the PR mergeability state on GitHub
+def check_pr_mergeability_state_on_github(pr_number):
+    # only query GitHub if the PR is not already in the file
+    if pr_number and not is_pr_already_in_file(pr_number):
+        response = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}", headers=github_headers)
+        if response.status_code == 200:
+            pr_data = response.json()
+            # print(pr_data)
+            if pr_data.get("merged") is True:
+                return "merged"
+            elif pr_data.get("mergeable_state") == "clean":
+                return "clean"  # PR is clean and can be merged
+            elif pr_data.get("mergeable_state") == "dirty":
+                return "dirty"  # PR is dirty and cannot be merged
+            elif pr_data.get("mergeable_state") == "unknown":
+                return "unknown"  # PR mergeability is being checked
+            elif pr_data.get("mergeable_state") == "blocked":
+                return "blocked"  # PR is blocked and cannot be merged
+            elif pr_data.get("mergeable_state") == "behind":
+                return "behind"  # PR is behind the base branch
+            else:
+                return "other"  # Other states
+        return "not_found"
+
+
+# returns True if PR is mergeable and False otherwise
+def is_pr_mergeable(pr_number):
+    mergeable_state = check_pr_mergeability_state_on_github(pr_number)
+    if mergeable_state == "clean" and not is_pr_merged(pr_number):
+        return True  # PR is clean and can be merged
+    return False
+
+
+# returns True if PR is already merged and False otherwise
+def is_pr_merged(pr_number):
+    mergeable_state = check_pr_mergeability_state_on_github(pr_number)
+    if mergeable_state == "merged":
+        return True  # PR is merged
+    return False
+
+
+# waits for PR to be merged and returns True if merged and False otherwise
+def wait_for_pr_to_merge(pr_number, timeout=1):
+    start_time = time.time()
+    while time.time() - start_time <= timeout:
+        if is_pr_mergeable(pr_number):
+            if check_pr_merged(pr_number):
+                return True  # PR is mergeable
+            time.sleep(1)  # Wait for 5 seconds before checking again
+    return False  # Timeout reached, PR is not mergeable
+
+
+# checks if PR is merged and returns True if merged and False otherwise
+def check_pr_merged(pr_number):
+    response = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/pulls/{pr_number}", headers=github_headers)
+    if response.status_code == 200:
+        pr_data = response.json()
+        return pr_data.get("merged", False)
+    else:
+        print(f"Failed to retrieve PR data. Status: {response.status_code}, Response: {response.text}")
+        return False
+
+
+# method checks if PR is already in file (meaning merged)
+def is_pr_already_in_file(pr_number):
+    # Check if the PR is already in the file
+    processed_pr_numbers = load_latest_processed_pr_data()
+    if pr_number in processed_pr_numbers:
+        print(f"PR #{pr_number} is already processed.")
+        return True  # PR is already processed and therefore already merged
+    else:
+        return False
+
+
+# method to save the processed PR number to the file with their timestamps
+def save_processed_pr_number(pr_number, message_ts):
+    with open(PROCESSED_PR_FILE, "a") as file:
+        file.write(f"{pr_number},{message_ts}\n")
+
+
+def load_latest_processed_pr_data():
+    try:
+        with open(PROCESSED_PR_FILE, "rb") as file:
+            # Attempt to go to the second-to-last byte of the file
+            file.seek(-2, os.SEEK_END)
+
+            # Keep moving backwards until you find the newline character
+            while file.read(1) != b'\n':
+                file.seek(-2, os.SEEK_CUR)
+
+            # Read the last line
+            last_line = file.readline().decode()
+
+    except FileNotFoundError:
+        return {}
+    except OSError:
+        # The OSError is expected in cases where the file is empty or too small,
+        # so handle it by returning an empty dictionary.
+        return {}
+
+    parts = last_line.strip().split(',')
+    if len(parts) == 2:
+        # Return the dictionary with the last processed PR number and its timestamp
+        return {parts[0]: parts[1]}
+    else:
+        return {}
+
+
+# Function to find the latest PR message in the channel and return it
+def find_latest_pr_opened_message(channel_id, latest_ts=None):
+    params = {"channel": channel_id, "limit": 900}
+    if latest_ts:
+        params["oldest"] = latest_ts  # Fetch messages newer than the latest_ts
     response = requests.get(CONVERSATIONS_HISTORY_URL, headers=slack_headers, params=params)
     if response.status_code == 200:
         messages = response.json().get("messages", [])
@@ -49,6 +175,7 @@ def find_latest_pr_opened_message(channel_id):
     return None
 
 
+# function to get the reaction count on a message from a Slack channel
 def get_reaction_count(message_ts, channel_id):
     params = {"channel": channel_id, "timestamp": message_ts}
     response = requests.get(REACTIONS_GET_URL, headers=slack_headers, params=params)
@@ -75,31 +202,58 @@ def trigger_github_workflow(pr_number):
         print(f"Failed to trigger the GitHub workflow. Status: {response.status_code}, Response: {response.text}")
 
 
-def continuously_check_reactions(threshold=1):
-    while True:
-        latest_pr_message = find_latest_pr_opened_message(SLACK_CHANNEL_ID)
-        if latest_pr_message:
-            message_id = latest_pr_message.get("ts")
-            thumbs_up_count = get_reaction_count(message_id, SLACK_CHANNEL_ID)
-            print(f"Thumbs-up reaction count: {thumbs_up_count}")
-            if thumbs_up_count >= threshold:
-                pr_number = extract_pr_number(latest_pr_message)
-                if pr_number:
-                    trigger_github_workflow(pr_number)
-                    break
-                else:
-                    print("Failed to extract pull request number from the message.")
-        else:
-            print("No 'Pull Request Opened' message found in the channel.")
-        time.sleep(10)
-
-
 def extract_pr_number(message):
     if "attachments" in message:
         for attachment in message["attachments"]:
             if "title" in attachment and "Pull Request #" in attachment["title"]:
                 return attachment["title"].split("#")[1]
     return None
+
+
+def continuously_check_reactions(threshold=1):
+    while True:
+        # load processed PR numbers from the file to avoid processing the same PR multiple times
+        # to prevent redundant workflow triggers
+        processed_pr_numbers = load_latest_processed_pr_data()
+        # extact the latest timestamp from the processed PR numbers
+        latest_ts_from_file = max([float(ts) for ts in processed_pr_numbers.values()]) if processed_pr_numbers else None
+
+        # Find the latest PR message in the channel
+        latest_pr_message = find_latest_pr_opened_message(SLACK_CHANNEL_ID, latest_ts_from_file)
+        # print(latest_pr_message)
+        if latest_pr_message:  # If a PR message is found in the channel
+            # Extract the PR number from the message
+            pr_number = extract_pr_number(latest_pr_message)
+
+            message_ts = latest_pr_message.get("ts")  # timestamp of the message
+
+            # check if the PR is found in messages and not processed already (not in the file)
+            if pr_number and pr_number not in processed_pr_numbers:
+                # Get the thumbs-up reaction count on the message
+                message_id = latest_pr_message.get("ts")  # timestamp of the message
+                thumbs_up_count = get_reaction_count(message_id, SLACK_CHANNEL_ID)  # get the reaction count
+                print(f"Thumbs-up reaction count: {thumbs_up_count}")
+                # if the reaction count is greater than or equal to the threshold, trigger the GitHub workflow
+                # this means everyone has approved the PR
+                if thumbs_up_count >= threshold:
+                    # if PR number is extracted successfully (redundant check but safe)
+                    if pr_number and not is_pr_merged(pr_number):  # check if PR is not already merged
+                        if is_pr_mergeable(pr_number):
+                            trigger_github_workflow(pr_number)
+                        if wait_for_pr_to_merge(pr_number):  # wait for PR to be merged
+                            if check_pr_merged(pr_number):  # check if merging is completed
+                                save_processed_pr_number(pr_number, message_ts)  # save the PR number to the file
+                            else:
+                                print(f"PR #{pr_number} merging failed.")
+                        else:
+                            print(f"PR #{pr_number} is not mergeable or timed out waiting for merge.")
+                    else:
+                        print(f"PR #{pr_number} is already merged.")
+            else:
+                print(f"PR number: {pr_number} already processed and on file.")
+        else:
+            print("No 'Pull Request Opened' message found in the channel.")
+        time.sleep(60)  # Check every minute (60 seconds)
 
 
 if __name__ == "__main__":
