@@ -2,7 +2,7 @@ name: backend-python-app staging deployment
 
 on:
   workflow_run:
-    workflows: [Workflow Dispatch Merge]
+    workflows: [Workflow Dispatch Merge, CodeQL]
     types:
       - completed
     branches:
@@ -11,7 +11,7 @@ on:
 permissions:
   contents: read
 
-run-name: Deploy staging app to ${{ inputs.deploy_target }}
+run-name: Test, then deploy staging app to Heroku
 
 jobs:
   build:

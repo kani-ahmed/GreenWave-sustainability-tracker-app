@@ -3,7 +3,6 @@
 import requests
 import time
 import os
-import threading
 from dotenv import load_dotenv
 
 # load_dotenv()  # only needed locally Heroku does not need it
@@ -14,7 +13,7 @@ SLACK_BOT_TOKEN = os.getenv('SLACK_BOT_TOKEN')
 
 # GitHub configuration
 GITHUB_REPO = "kenny-ahmedd/GreenWave-sustainability-tracker-app"
-GITHUB_WORKFLOW_ID = "workflow_dispatch_merge.yml"
+GITHUB_WORKFLOW_ID = "dispatch_merge_pr_workflow.yml"
 GITHUB_TOKEN = os.getenv('GITHUB_TOKEN')
 
 # API endpoints
