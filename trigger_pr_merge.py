@@ -3,7 +3,6 @@
 import requests
 import time
 import os
-import threading
 from dotenv import load_dotenv
 
 # load_dotenv()  # only needed locally Heroku does not need it
