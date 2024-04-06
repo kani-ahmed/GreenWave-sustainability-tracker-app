@@ -4,6 +4,7 @@ from flask import Flask
 from extensions import db
 from sqlalchemy import text
 from seed import seed_challenges
+from flask_cors import CORS
 
 # Initialize logging
 logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s', level=logging.DEBUG, datefmt='%Y-%m-%d %H:%M:%S')
@@ -22,6 +23,8 @@ from views import create_app
 
 # Call create_app to initialize your Flask application and register routes
 app = create_app()
+
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Configure the SQLAlchemy database URI
 if IS_HEROKU:
