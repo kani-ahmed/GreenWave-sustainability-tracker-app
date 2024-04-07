@@ -35,22 +35,18 @@ def register_environment_routes(app):
 
         impacts = EnvironmentalImpact.query.filter_by(user_id=user_id).all()
 
-        # return everything from this table filtered by user_id
-        return jsonify(impacts), 200
-
-        #total_impact = sum(impact.impact_score for impact in impacts)
-
-        # return jsonify({"user_id": user_id, "total_impact": total_impact}), 200
-
-    @app.route('/get_detailed_impact/<int:user_id>', methods=['GET'])
-    def get_detailed_impact(user_id):
-        impacts = EnvironmentalImpact.query.filter_by(user_id=user_id).all()
         impact_details = [
             {
+                "id": impact.id,
+                "user_id": impact.user_id,
                 "impact_score": impact.impact_score,
                 "water_saved": impact.water_saved,
                 "plastic_waste_reduced": impact.plastic_waste_reduced,
-                "co2_emissions_prevented": impact.co2_emissions_prevented
+                "co2_emissions_prevented": impact.co2_emissions_prevented,
+                "money_saved": impact.money_saved,
+                "recycled_bottles": impact.recycled_bottles,
+                "single_use_bottles": impact.single_use_bottles,
+                "refillable_bottles": impact.refillable_bottles,
             } for impact in impacts
         ]
 
