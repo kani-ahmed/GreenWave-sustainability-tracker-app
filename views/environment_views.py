@@ -34,9 +34,13 @@ def register_environment_routes(app):
             return jsonify({"error": "User not found"}), 404
 
         impacts = EnvironmentalImpact.query.filter_by(user_id=user_id).all()
-        total_impact = sum(impact.impact_score for impact in impacts)  # Sum up all impact scores
 
-        return jsonify({"user_id": user_id, "total_impact": total_impact}), 200
+        # return everything from this table filtered by user_id
+        return jsonify(impacts), 200
+
+        #total_impact = sum(impact.impact_score for impact in impacts)
+
+        # return jsonify({"user_id": user_id, "total_impact": total_impact}), 200
 
     @app.route('/get_detailed_impact/<int:user_id>', methods=['GET'])
     def get_detailed_impact(user_id):
