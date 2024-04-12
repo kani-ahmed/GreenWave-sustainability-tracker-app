@@ -1,12 +1,17 @@
-name: backend-testing-and-deployment-script
+name: backend-python-app staging deployment
 
 on:
-  push:
+  workflow_run:
+    workflows: [Workflow Dispatch Merge, CodeQL]
+    types:
+      - completed
     branches:
-      - '**'
+      - 'main'
 
 permissions:
   contents: read
+
+run-name: Test, then deploy staging app to Heroku
 
 jobs:
   build:
@@ -14,10 +19,34 @@ jobs:
     env:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Get current time
         id: current-time
         run: echo "::set-output name=time::$(date +%s)"
+
+      - name: Notify Slack - Preparing Deployment
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          fields: workflow,job,commit,ref,author,took
+          custom_payload: |
+            {
+              "attachments": [
+                {
+                  "color": "#36a64f",
+                  "pretext": ":hourglass_flowing_sand: Waiting for merge to main completed. Deploying the app to Heroku...",
+                  "title": "Deployment Preparation",
+                  "text": "The merge to the main branch has completed successfully. Now preparing to deploy the app to Heroku.",
+                  "footer": "GitHub Actions",
+                  "footer_icon": "https://github.githubassets.com/favicon.ico",
+                  "ts": ${{ steps.current-time.outputs.time }}
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
       - uses: actions/checkout@v3
 
@@ -65,6 +94,15 @@ jobs:
                 }
               ]
             }
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
 
       - name: Install dependencies
         run: |
