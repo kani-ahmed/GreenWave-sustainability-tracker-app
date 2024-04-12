@@ -74,4 +74,4 @@ create_tables_and_seed_data()
 if __name__ == '__main__':
     # Run the Flask app
     # The host must be set to '0.0.0.0' to be accessible within the Heroku dyno
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8000)), debug=True)

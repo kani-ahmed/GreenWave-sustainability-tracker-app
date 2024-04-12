@@ -1,12 +1,14 @@
 # user_views.py
 from flask import request, jsonify
 from werkzeug.security import generate_password_hash
+from werkzeug.security import check_password_hash
 
 from models import UserPreference, Notification, User
 from extensions import db
 
 
 def register_user_routes(app):
+    
     @app.route('/register', methods=['POST'])
     def register_user():
         data = request.get_json()
@@ -25,6 +27,65 @@ def register_user_routes(app):
         db.session.commit()
 
         return jsonify({"message": "Registration successful"}), 201
+    
+    
+    # TESTING PURPOSES ONLY
+    @app.route('/get_password/<int:user_id>', methods=['GET'])
+    def get_password(user_id):
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        # Return the password (not recommended for production)
+        return jsonify({"password": user.password_hash}), 200
+    
+    @app.route('/set_password/<int:user_id>', methods=['POST'])
+    def set_user_password(user_id):
+        data = request.get_json()
+        password = data.get('password')
+
+        if not password:
+            return jsonify({"error": "Password not provided"}), 400
+
+        # Fetch the user by user id
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        # Generate a hashed password
+        hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+
+        # Set the hashed password for the user
+        user.password_hash = hashed_password
+
+        # Commit the changes to the database
+        db.session.commit()
+
+        return jsonify({"message": "Password set successfully"}), 200
+    
+    
+    @app.route('/login', methods=['POST'])
+    def login():
+        print('asfasfs')
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+
+        # Retrieve the user from the database based on the provided username/email
+        user = User.query.filter((User.username == username) | (User.email == username)).first()
+        
+        print(username)
+        print(password)
+        print(user)
+        
+        if user and check_password_hash(user.password_hash, password):
+            # Passwords match, user is authenticated
+            # Generate a JWT token or session token and return it to the client for future authenticated requests
+            return jsonify({"message": "Login successful", "user_id": user.id}), 200
+        else:
+            # Invalid credentials
+            return jsonify({"error": "Invalid username/email or password"}), 401
+
 
     @app.route('/update_preferences/<int:user_id>', methods=['PUT'])
     def update_preferences(user_id):
