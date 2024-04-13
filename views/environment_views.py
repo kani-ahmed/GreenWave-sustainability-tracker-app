@@ -122,6 +122,7 @@ def register_environment_routes(app):
         count = data.get('count', 1)
 
         # Retrieve or create EnvironmentalImpact record for user
+        user = User.query.get(user_id)
         impact_record = EnvironmentalImpact.query.filter_by(user_id=user_id).first()
         if not impact_record:
             impact_record = EnvironmentalImpact(
@@ -132,6 +133,10 @@ def register_environment_routes(app):
 
         # Update environmental impact based on bottle type and count
         update_environmental_impact(impact_record, bottle_type, count)
+
+        # Increment user's eco_points with the new impact score only
+        user.eco_points += impact_record.impact_score
+
         db.session.commit()
 
         return jsonify({"message": "Water usage logged successfully"}), 200
