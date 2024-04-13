@@ -166,13 +166,14 @@ def register_environment_routes(app):
         MONEY_SAVINGS_FACTOR = 0.15  # Assuming using a refillable bottle saves 15% of baseline money savings per use
 
         # Calculate the environmental impact based on the type of bottle and count
-        co2_emissions_saved = CO2_SAVINGS_FACTOR.get(bottle_type, 0) * baseline_values['co2_saved_per_action'] * count
-        water_saved = WATER_SAVINGS_FACTOR * baseline_values[
-            'water_saved_per_action'] * count if bottle_type == 'refillable' else 0
-        plastic_waste_reduced = PLASTIC_WASTE_FACTOR.get(bottle_type, 0) * baseline_values[
-            'plastic_saved_per_action'] * count
-        money_saved = MONEY_SAVINGS_FACTOR * baseline_values[
-            'money_saved_per_action'] * count if bottle_type == 'refillable' else 0
+        co2_emissions_saved = math.ceil(
+            CO2_SAVINGS_FACTOR.get(bottle_type, 0) * baseline_values['co2_saved_per_action'] * count)
+        water_saved = math.ceil(WATER_SAVINGS_FACTOR * baseline_values[
+            'water_saved_per_action'] * count) if bottle_type == 'refillable' else 0
+        plastic_waste_reduced = math.ceil(
+            PLASTIC_WASTE_FACTOR.get(bottle_type, 0) * baseline_values['plastic_saved_per_action'] * count)
+        money_saved = math.ceil(MONEY_SAVINGS_FACTOR * baseline_values[
+            'money_saved_per_action'] * count) if bottle_type == 'refillable' else 0
 
         # Increment counts based on bottle type
         if bottle_type == 'recycled':
