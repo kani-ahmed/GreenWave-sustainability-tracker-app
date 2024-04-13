@@ -3,6 +3,7 @@
 from flask import request, jsonify
 from models import EnvironmentalImpact, UserAction, User
 from extensions import db
+import math
 
 
 def register_environment_routes(app):
@@ -99,7 +100,7 @@ def register_environment_routes(app):
     def calculate_impact_score(baseline_values, co2_saved, water_saved, plastic_waste_reduced, money_saved):
         """Calculates the overall impact score based on normalized and weighted contributions of different
         environmental savings."""
-        weights = {'co2_saved': 0.25, 'water_saved': 0.25, 'plastic_waste_reduced': 0.25, 'money_saved': 0.25}
+        weights = {'co2_saved': 1, 'water_saved': 1, 'plastic_waste_reduced': 1, 'money_saved': 1}
 
         normalized_co2_saved = co2_saved / baseline_values['co2_saved_per_action']
         normalized_water_saved = water_saved / baseline_values['water_saved_per_action']
@@ -112,7 +113,7 @@ def register_environment_routes(app):
                 normalized_plastic_waste_reduced * weights['plastic_waste_reduced'] +
                 normalized_money_saved * weights['money_saved']
         )
-        return impact_score
+        return math.ceil(impact_score)
 
     @app.route('/log_water_usage', methods=['POST'])
     def log_water_usage():
