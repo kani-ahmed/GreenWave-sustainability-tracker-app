@@ -282,5 +282,80 @@ def register_challenge_routes(app):
             return jsonify({"error": "User not found"}), 404
 
         badges = [badge.name for badge in user.badges]
+        
+        print(user_id)
+        print("adsfafjasn")
+        print(badges)
+        
         return jsonify({"badges": badges}), 200
+    
+    @app.route('/get_personal_challenges/<int:user_id>', methods=['GET'])
+    def get_personal_challenges(user_id):
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
 
+        personal_challenges = PersonalChallengeParticipant.query.filter_by(user_id=user_id).all()
+        if not personal_challenges:
+            return jsonify({"error": "No personal challenges found for this user"}), 404
+
+        challenge_details = [{
+            'challenge_id': part.challenge.id,
+            'name': part.challenge.name,
+            'description': part.challenge.description,
+            'eco_points': part.challenge.eco_points,
+            'start_date': part.start_date.isoformat(),
+            'end_date': part.end_date.isoformat() if part.end_date else None,
+            'status': 'Completed' if part.end_date else 'In Progress'
+        } for part in personal_challenges]
+
+        return jsonify(challenge_details), 200
+    
+    @app.route('/award_badge', methods=['POST'])
+    def award_badge():
+        user_id = request.json.get('user_id')
+        badge_type = request.json.get('badge_type')
+        
+        # Retrieve user from database
+        user = User.query.get(user_id)
+        if not user:
+            return 'User not found', 404
+        
+        # Check if the badge type exists and can be awarded
+        badge = Badge.query.filter_by(name=badge_type).first()
+        if not badge:
+            return 'Badge type not found', 404
+        
+        # Check if the user already has this badge
+        if badge in user.badges:
+            return 'Badge already awarded', 409
+        
+        # Award the badge to the user
+        user.badges.append(badge)
+        db.session.commit()
+        
+        return '', 204  # No Content response, indicating success
+    
+    
+    @app.route('/create_badge', methods=['POST'])
+    def create_badge():
+        # Extract badge details from the request's JSON body
+        badge_data = request.get_json()
+        name = badge_data.get('name')
+        eco_points_required = badge_data.get('eco_points_required')
+        
+        if not name or not eco_points_required:
+            return jsonify({'error': 'Missing badge name or eco points required'}), 400
+
+        # Check if the badge already exists
+        if Badge.query.filter_by(name=name).first():
+            return jsonify({'error': 'Badge already exists'}), 409
+
+        # Create a new badge instance
+        new_badge = Badge(name=name, eco_points_required=eco_points_required)
+        
+        # Add the new badge to the database
+        db.session.add(new_badge)
+        db.session.commit()
+
+        return jsonify({'message': 'Badge created successfully', 'badge_id': new_badge.id}), 201
