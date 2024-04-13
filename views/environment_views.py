@@ -150,6 +150,9 @@ def register_environment_routes(app):
         impact_record.water_saved = impact_record.water_saved or 0
         impact_record.plastic_waste_reduced = impact_record.plastic_waste_reduced or 0
         impact_record.money_saved = impact_record.money_saved or 0
+        impact_record.refillable_bottles = impact_record.refillable_bottles or 0
+        impact_record.recycled_bottles = impact_record.recycled_bottles or 0
+        impact_record.single_use_bottles = impact_record.single_use_bottles or 0
 
         # Define the impact of each bottle type on environmental savings
         CO2_SAVINGS_FACTOR = {
