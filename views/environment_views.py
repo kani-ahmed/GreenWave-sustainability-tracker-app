@@ -168,6 +168,14 @@ def register_environment_routes(app):
         money_saved = MONEY_SAVINGS_FACTOR * baseline_values[
             'money_saved_per_action'] * count if bottle_type == 'refillable' else 0
 
+        # Increment counts based on bottle type
+        if bottle_type == 'recycled':
+            impact_record.recycled_bottles += count
+        elif bottle_type == 'single-use':
+            impact_record.single_use_bottles += count
+        elif bottle_type == 'refillable':
+            impact_record.refillable_bottles += count
+
         # Update the environmental impact record
         impact_record.co2_emissions_prevented += co2_emissions_saved
         impact_record.water_saved += water_saved
