@@ -120,3 +120,37 @@ def register_social_routes(app):
 
         return jsonify({"message": f"Friend request {action} successfully"}), 200
 
+    @app.route('/view_posts', methods=['GET'])
+    def view_posts():
+        # Fetch all posts along with user details via a join (this avoids an N+1 query problem)
+        posts = Post.query.join(User).all()
+        post_list = [{
+            'post_id': post.id,
+            'username': post.user.username,  # Accessing the username from the User model
+            'content': post.content,
+            'created_at': post.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            'updated_at': post.updated_at.strftime("%Y-%m-%d %H:%M:%S")
+        } for post in posts]
+
+        return jsonify(post_list), 200
+
+    @app.route('/view_my_posts/<int:user_id>', methods=['GET'])
+    def view_my_posts(user_id):
+        # Ensure user exists
+        if not User.query.get(user_id):
+            return jsonify({"error": "User not found"}), 404
+
+        # Fetch posts only for the specified user along with user details via a join
+        posts = Post.query.join(User).filter(Post.user_id == user_id).all()
+        post_list = [{
+            'post_id': post.id,
+            'username': post.user.username,  # Accessing the username from the User model
+            'content': post.content,
+            'created_at': post.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            'updated_at': post.updated_at.strftime("%Y-%m-%d %H:%M:%S")
+        } for post in posts]
+
+        return jsonify(post_list), 200
+
+
+

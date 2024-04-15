@@ -63,17 +63,12 @@ def register_user_routes(app):
 
     @app.route('/login', methods=['POST'])
     def login():
-        print('asfasfs')
         data = request.get_json()
         username = data.get('username')
         password = data.get('password')
 
         # Retrieve the user from the database based on the provided username/email
         user = User.query.filter((User.username == username) | (User.email == username)).first()
-
-        print(username)
-        print(password)
-        print(user)
 
         if user and check_password_hash(user.password_hash, password):
             # Passwords match, user is authenticated
