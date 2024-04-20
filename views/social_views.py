@@ -163,6 +163,23 @@ def register_social_routes(app):
             } for user in users]
 
             return jsonify(user_list), 200
+        
+            @app.route('/get_friendships/<int:user_id>', methods=['GET'])
+            def get_user_friendships(user_id):
+                friendships = Friendship.query.filter(
+                    (Friendship.user_id == user_id) | (Friendship.friend_id == user_id)
+                ).all()
+
+                friendship_list = [{
+                    'id': friendship.id,
+                    'user_id': friendship.user_id,
+                    'friend_id': friendship.friend_id,
+                    'status': friendship.status,
+                    'created_at': friendship.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    'updated_at': friendship.updated_at.strftime("%Y-%m-%d %H:%M:%S")
+                } for friendship in friendships]
+
+                return jsonify(friendship_list), 200
 
 
 
