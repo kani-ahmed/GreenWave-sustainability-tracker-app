@@ -1,7 +1,8 @@
 # social_views.py
 from flask import request, jsonify
-from models import Post, Like, Comment, Friendship, User
+
 from extensions import db
+from models import Post, Like, Comment, Friendship, User
 
 
 def register_social_routes(app):
@@ -101,7 +102,7 @@ def register_social_routes(app):
             ((Friendship.user_id == user_id) & (Friendship.friend_id == friend_id) &
              (Friendship.status.in_(["accepted", "requested"]))) |
             ((Friendship.user_id == friend_id) & (Friendship.friend_id == user_id) &
-             (Friendship.status == "requested"))
+             (Friendship.status.in_(["accepted", "requested"])))
         ).first()
 
         if not friendship:
@@ -144,42 +145,44 @@ def register_social_routes(app):
         posts = Post.query.join(User).filter(Post.user_id == user_id).all()
         post_list = [{
             'post_id': post.id,
-            'username': post.user.username,  # Accessing the username from the User model
+            'username': post.user.username,
             'content': post.content,
             'created_at': post.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             'updated_at': post.updated_at.strftime("%Y-%m-%d %H:%M:%S")
         } for post in posts]
 
         return jsonify(post_list), 200
-    
-        @app.route('/get_users', methods=['GET'])
-        def get_all_users():
-            users = User.query.all()
-            user_list = [{
-                'user_id': user.id,
-                'username': user.username,
-                'email': user.email,
-                # Add any other user fields you want to include
-            } for user in users]
 
-            return jsonify(user_list), 200
-        
-            @app.route('/get_friendships/<int:user_id>', methods=['GET'])
-            def get_user_friendships(user_id):
-                friendships = Friendship.query.filter(
-                    (Friendship.user_id == user_id) | (Friendship.friend_id == user_id)
-                ).all()
+    @app.route('/get_users', methods=['GET'])
+    def get_all_users():
+        users = User.query.all()
+        user_list = [{
+            'user_id': user.id,
+            'username': user.username,
+            'email': user.email,
+        } for user in users]
 
-                friendship_list = [{
-                    'id': friendship.id,
-                    'user_id': friendship.user_id,
-                    'friend_id': friendship.friend_id,
-                    'status': friendship.status,
-                    'created_at': friendship.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-                    'updated_at': friendship.updated_at.strftime("%Y-%m-%d %H:%M:%S")
-                } for friendship in friendships]
+        return jsonify(user_list), 200
 
-                return jsonify(friendship_list), 200
+    @app.route('/get_friendships/<int:user_id>', methods=['GET'])
+    def get_user_friendships(user_id):
+        friendships = Friendship.query.filter(
+            (Friendship.user_id == user_id) | (Friendship.friend_id == user_id)
+        ).all()
 
+        friendship_list = []
+        for friendship in friendships:
+            friend = User.query.get(friendship.friend_id if friendship.user_id == user_id else friendship.user_id)
+            friendship_data = {
+                'id': friendship.id,
+                'user_id': user_id,
+                'friend_id': friendship.friend_id if friendship.user_id == user_id else friendship.user_id,
+                'friend_name': friend.username if friend else None,
+                'status': friendship.status,
+                'request_type': 'outgoing' if friendship.user_id == user_id else 'incoming',
+                'created_at': friendship.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                'updated_at': friendship.updated_at.strftime("%Y-%m-%d %H:%M:%S")
+            }
+            friendship_list.append(friendship_data)
 
-
+        return jsonify(friendship_list), 200
