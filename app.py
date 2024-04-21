@@ -30,7 +30,15 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 if IS_HEROKU:
     stackhero_url = os.environ['STACKHERO_MYSQL_DATABASE_URL']
     stackhero_url = stackhero_url.replace('mysql://', 'mysql+pymysql://')
-    app.config['SQLALCHEMY_DATABASE_URI'] = stackhero_url + '?ssl=true&ssl_ca={}'.format(os.environ['SSL_KEY'])
+    stackhero_url = stackhero_url.split('?')[0]  # Remove the query parameters
+    ssl_cert = os.environ['SSL_KEY']
+
+    # Check if the server.crt file exists and has contents
+    if not os.path.exists('server.crt') or os.path.getsize('server.crt') == 0:
+        with open('server.crt', 'w') as f:
+            f.write(ssl_cert)
+
+    app.config['SQLALCHEMY_DATABASE_URI'] = stackhero_url + '?ssl={"ca": "server.crt"}'
 else:
     # When running locally, take the database URI from the .env file
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI')
