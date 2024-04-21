@@ -38,7 +38,7 @@ if IS_HEROKU:
         with open('server.crt', 'w') as f:
             f.write(ssl_cert)
 
-    app.config['SQLALCHEMY_DATABASE_URI'] = stackhero_url + '?ssl={"ca": "server.crt"}'
+    app.config['SQLALCHEMY_DATABASE_URI'] = stackhero_url + '?ssl_ca=server.crt'
 else:
     # When running locally, take the database URI from the .env file
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI')
