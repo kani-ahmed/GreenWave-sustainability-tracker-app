@@ -28,13 +28,12 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Configure the SQLAlchemy database URI
 if IS_HEROKU:
-    # Parse the ClearDB URL and use it for SQLAlchemy
-    cleardb_url = os.environ['STACKHERO_MYSQL_DATABASE_URL']
-    # Remove the reconnect=true query from the URL if present
-    if '?reconnect=true' in cleardb_url:
-        cleardb_url = cleardb_url.split('?')[0]  # Alternatively, cleardb_url.replace('?reconnect=true', '')
-    cleardb_url = cleardb_url.replace('mysql://', 'mysql+pymysql://')
-    app.config['SQLALCHEMY_DATABASE_URI'] = cleardb_url
+    # Parse the StackHero MySQL URL and use it for SQLAlchemy
+    stackhero_url = os.environ['STACKHERO_MYSQL_DATABASE_URL']
+    # Remove the useSSL and requireSSL parameters from the URL
+    stackhero_url = stackhero_url.replace('?useSSL=true&requireSSL=true', '')
+    stackhero_url = stackhero_url.replace('mysql://', 'mysql+pymysql://')
+    app.config['SQLALCHEMY_DATABASE_URI'] = stackhero_url
 else:
     # When running locally, take the database URI from the .env file
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI')
