@@ -29,7 +29,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 # Configure the SQLAlchemy database URI
 if IS_HEROKU:
     # Parse the ClearDB URL and use it for SQLAlchemy
-    cleardb_url = os.environ['CLEARDB_DATABASE_URL']
+    cleardb_url = os.environ['STACKHERO_MYSQL_DATABASE_URL']
     # Remove the reconnect=true query from the URL if present
     if '?reconnect=true' in cleardb_url:
         cleardb_url = cleardb_url.split('?')[0]  # Alternatively, cleardb_url.replace('?reconnect=true', '')
