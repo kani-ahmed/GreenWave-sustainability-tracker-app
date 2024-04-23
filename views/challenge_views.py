@@ -2,7 +2,7 @@
 
 from flask import request, jsonify
 from models import Challenge, PersonalChallengeParticipant, User, CommunityChallenge, Badge, \
-    CommunityChallengeParticipant
+    CommunityChallengeParticipant, ChallengesInbox
 from extensions import db
 from datetime import datetime, timezone
 
@@ -376,3 +376,227 @@ def register_challenge_routes(app):
             challenges_data.append(challenge_data)
 
         return jsonify(challenges_data)
+
+    @app.route('/get_sent_personal_challenges/<int:user_id>', methods=['GET'])
+    def get_sent_personal_challenges(user_id):
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        sent_challenges = [challenge for challenge in user.sent_challenges if challenge.challenge_id is not None]
+        if not sent_challenges:
+            return jsonify({"error": "No sent personal challenges found for this user"}), 404
+
+        challenge_details = [{
+            'id': challenge.id,
+            'recipient_id': challenge.user_id,
+            'recipient_username': challenge.user.username,
+            'challenge_id': challenge.challenge_id,
+            'challenge_name': challenge.challenge.name,
+            'timestamp': challenge.timestamp.isoformat(),
+            'status': challenge.status
+        } for challenge in sent_challenges]
+
+        return jsonify(challenge_details), 200
+
+    @app.route('/get_sent_community_challenges/<int:user_id>', methods=['GET'])
+    def get_sent_community_challenges(user_id):
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        sent_challenges = [challenge for challenge in user.sent_challenges if
+                           challenge.community_challenge_id is not None]
+        if not sent_challenges:
+            return jsonify({"error": "No sent community challenges found for this user"}), 404
+
+        challenge_details = [{
+            'id': challenge.id,
+            'recipient_id': challenge.user_id,
+            'recipient_username': challenge.user.username,
+            'community_challenge_id': challenge.community_challenge_id,
+            'community_challenge_name': Challenge.query.get(challenge.community_challenge.challenge_id).name,
+            'timestamp': challenge.timestamp.isoformat(),
+            'status': challenge.status
+        } for challenge in sent_challenges]
+
+        return jsonify(challenge_details), 200
+
+    @app.route('/get_received_personal_challenges/<int:user_id>', methods=['GET'])
+    def get_received_personal_challenges(user_id):
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        received_challenges = [challenge for challenge in user.received_challenges if
+                               challenge.challenge_id is not None]
+        if not received_challenges:
+            return jsonify({"error": "No received personal challenges found for this user"}), 404
+
+        challenge_details = [{
+            'id': challenge.id,
+            'sender_id': challenge.sender_id,
+            'sender_username': challenge.sender.username,
+            'challenge_id': challenge.challenge_id,
+            'challenge_name': challenge.challenge.name,
+            'timestamp': challenge.timestamp.isoformat(),
+            'status': challenge.status
+        } for challenge in received_challenges]
+
+        return jsonify(challenge_details), 200
+
+    @app.route('/get_received_community_challenges/<int:user_id>', methods=['GET'])
+    def get_received_community_challenges(user_id):
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        received_challenges = [challenge for challenge in user.received_challenges if
+                               challenge.community_challenge_id is not None]
+        if not received_challenges:
+            return jsonify({"error": "No received community challenges found for this user"}), 404
+
+        challenge_details = [{
+            'id': challenge.id,
+            'sender_id': challenge.sender_id,
+            'sender_username': challenge.sender.username,
+            'community_challenge_id': challenge.community_challenge_id,
+            'community_challenge_name': Challenge.query.get(
+                CommunityChallenge.query.get(challenge.community_challenge_id).challenge_id).name,
+            'timestamp': challenge.timestamp.isoformat(),
+            'status': challenge.status
+        } for challenge in received_challenges]
+
+        return jsonify(challenge_details), 200
+
+    @app.route('/send_personal_challenge', methods=['POST'])
+    def send_personal_challenge():
+        data = request.get_json()
+        sender_id = data.get('sender_id')
+        recipient_id = data.get('recipient_id')
+        challenge_id = data.get('challenge_id')
+
+        sender = User.query.get(sender_id)
+        recipient = User.query.get(recipient_id)
+        challenge = Challenge.query.get(challenge_id)
+
+        if not sender or not recipient or not challenge:
+            return jsonify({"error": "Invalid sender, recipient, or challenge"}), 400
+
+        new_challenge = ChallengesInbox(
+            user_id=recipient_id,
+            sender_id=sender_id,
+            challenge_id=challenge_id,
+            status="pending"
+        )
+
+        db.session.add(new_challenge)
+        db.session.commit()
+
+        return jsonify({"message": "Personal challenge sent successfully"}), 200
+
+    @app.route('/send_community_challenge', methods=['POST'])
+    def send_community_challenge():
+        data = request.get_json()
+        sender_id = data.get('sender_id')
+        recipient_id = data.get('recipient_id')
+        community_challenge_id = data.get('community_challenge_id')
+
+        sender = User.query.get(sender_id)
+        recipient = User.query.get(recipient_id)
+        community_challenge = CommunityChallenge.query.get(community_challenge_id)
+
+        if not sender or not recipient or not community_challenge:
+            return jsonify({"error": "Invalid sender, recipient, or community challenge"}), 400
+
+        new_challenge = ChallengesInbox(
+            user_id=recipient_id,
+            sender_id=sender_id,
+            community_challenge_id=community_challenge_id,
+            status="pending"
+        )
+
+        db.session.add(new_challenge)
+        db.session.commit()
+
+        return jsonify({"message": "Community challenge sent successfully"}), 200
+
+    @app.route('/accept_challenge', methods=['PUT'])
+    def accept_challenge():
+        data = request.get_json()
+        challenge_id = data.get('challenge_id')
+        user_id = data.get('user_id')
+        challenge_type = data.get('challenge_type')  # 'personal' or 'community'
+
+        if not user_id or not challenge_id:
+            return jsonify({"error": "Missing user ID or challenge ID"}), 400
+
+        challenge_inbox = ChallengesInbox.query.filter_by(id=challenge_id, user_id=user_id).first()
+        if not challenge_inbox:
+            return jsonify({"error": "Challenge not found"}), 404
+
+        if challenge_inbox.status != "pending":
+            return jsonify({"error": "Challenge is not in a pending state"}), 400
+
+        if challenge_type == 'community':
+            community_challenge_id = challenge_inbox.community_challenge_id
+            if not community_challenge_id:
+                return jsonify({"error": "No community challenge associated"}), 400
+
+            new_participant = CommunityChallengeParticipant(
+                community_challenge_id=community_challenge_id,
+                participant_id=user_id,
+                status="active",
+                progress=0,
+                start_date=datetime.now(timezone.utc)
+            )
+            db.session.add(new_participant)
+
+        elif challenge_type == 'personal':
+            personal_challenge_id = challenge_inbox.challenge_id
+            if not personal_challenge_id:
+                return jsonify({"error": "No personal challenge associated"}), 400
+
+            new_participant = PersonalChallengeParticipant(
+                user_id=user_id,
+                challenge_id=personal_challenge_id,
+                start_date=datetime.now(timezone.utc)
+            )
+            db.session.add(new_participant)
+
+        else:
+            return jsonify({"error": "Invalid challenge type"}), 400
+
+        challenge_inbox.status = "accepted"
+        db.session.commit()
+
+        return jsonify({"message": "Challenge accepted successfully"}), 200
+
+    @app.route('/reject_challenge', methods=['PUT'])
+    def reject_challenge():
+        data = request.get_json()
+        challenge_id = data.get('challenge_id')
+        user_id = data.get('user_id')
+        challenge_type = data.get('challenge_type')  # 'personal' or 'community'
+
+        if not challenge_id or not user_id or not challenge_type:
+            return jsonify({"error": "Challenge ID, User ID, and challenge type are required"}), 400
+
+        challenge_inbox = ChallengesInbox.query.filter_by(id=challenge_id, user_id=user_id).first()
+        if not challenge_inbox:
+            return jsonify({"error": "Challenge not found"}), 404
+
+        if challenge_inbox.status != "pending":
+            return jsonify({"error": "Challenge is not in a pending state"}), 400
+
+        if challenge_type == 'community' and not challenge_inbox.community_challenge_id:
+            return jsonify({"error": "No community challenge associated"}), 400
+        elif challenge_type == 'personal' and not challenge_inbox.challenge_id:
+            return jsonify({"error": "No personal challenge associated"}), 400
+        elif challenge_type not in ['personal', 'community']:
+            return jsonify({"error": "Invalid challenge type"}), 400
+
+        challenge_inbox.status = "rejected"
+        db.session.commit()
+
+        return jsonify({"message": f"Challenge rejected successfully. Type: {challenge_type}"}), 200

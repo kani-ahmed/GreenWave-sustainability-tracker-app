@@ -88,3 +88,4 @@ vine==5.1.0
 wcwidth==0.2.13
 Werkzeug==3.0.1
 cryptography==42.0.5
+Flask-Migrate==4.0.7
