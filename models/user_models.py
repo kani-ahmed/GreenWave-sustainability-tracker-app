@@ -18,6 +18,12 @@ class User(db.Model):
     community_participations = db.relationship('CommunityChallengeParticipant', back_populates='participant',
                                                overlaps="participating_challenges,participants")
 
+    # Define the relationship to MessagesInbox and ChallengesInbox
+    messages_inbox = db.relationship('MessagesInbox', back_populates='user', lazy='dynamic',
+                                     foreign_keys='MessagesInbox.user_id')
+    challenges_inbox = db.relationship('ChallengesInbox', back_populates='user', lazy='dynamic',
+                                       foreign_keys='ChallengesInbox.user_id')
+
 
 class UserAction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -44,3 +50,30 @@ class UserPreference(db.Model):
     privacy_settings = db.Column(db.String(50))  # Example: "Public", "Friends Only", "Private"
 
     user = db.relationship('User', backref='preferences')
+
+
+class MessagesInbox(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    is_read = db.Column(db.Boolean, default=False)
+
+    user = db.relationship('User', backref='received_messages', foreign_keys=[user_id])
+    sender = db.relationship('User', backref='sent_messages', foreign_keys=[sender_id])
+
+
+class ChallengesInbox(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    challenge_id = db.Column(db.Integer, db.ForeignKey('challenge.id'), nullable=True)  # Allow null values
+    community_challenge_id = db.Column(db.Integer, db.ForeignKey('community_challenge.id'), nullable=True)
+    timestamp = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    status = db.Column(db.String(20), default='pending')  # e.g., 'pending', 'accepted', 'rejected'
+
+    user = db.relationship('User', backref='received_challenges', foreign_keys=[user_id])
+    sender = db.relationship('User', backref='sent_challenges', foreign_keys=[sender_id])
+    challenge = db.relationship('Challenge', backref='challenge_invites')
+    community_challenge = db.relationship('CommunityChallenge', backref='community_challenge_invites')
