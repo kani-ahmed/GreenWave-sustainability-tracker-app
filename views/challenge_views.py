@@ -355,3 +355,24 @@ def register_challenge_routes(app):
         db.session.commit()
 
         return jsonify({'message': 'Badge created successfully', 'badge_id': new_badge.id}), 201
+
+    # create a new route to get all community challenges
+    @app.route('/get_community_challenges', methods=['GET'])
+    def get_community_challenges():
+        community_challenges = CommunityChallenge.query.all()
+
+        challenges_data = []
+        for community_challenge in community_challenges:
+            challenge = Challenge.query.get(community_challenge.challenge_id)
+            challenge_data = {
+                "id": community_challenge.id,
+                "name": challenge.name,
+                "description": challenge.description,
+                "eco_points": challenge.eco_points,
+                "start_date": challenge.start_date.isoformat(),
+                "end_date": challenge.end_date.isoformat(),
+                "created_by": community_challenge.created_by
+            }
+            challenges_data.append(challenge_data)
+
+        return jsonify(challenges_data)
