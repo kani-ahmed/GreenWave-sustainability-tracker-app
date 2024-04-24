@@ -84,7 +84,7 @@ def register_utility_routes(app):
         community_challenge_status = [{
             "community_challenge_id": cc.community_challenge_id,
             "challenge_id": cc.community_challenge.challenge_id,
-            "name": cc.community_challenge.challenge.name,
+            "name": Challenge.query.get(cc.community_challenge.challenge_id).name,
             "status": cc.status,
             "type": "Community",
             "start_date": cc.start_date.isoformat(),
