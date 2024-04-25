@@ -1,7 +1,8 @@
 # utility_views.py
 
 from flask import request, jsonify
-from models import User, CommunityChallenge, Challenge, PersonalChallengeParticipant, CommunityChallengeParticipant
+from models import User, CommunityChallenge, Challenge, PersonalChallengeParticipant, CommunityChallengeParticipant, \
+    EnvironmentalImpact
 from extensions import db
 from sqlalchemy import desc
 
@@ -69,27 +70,61 @@ def register_utility_routes(app):
 
     @app.route('/user_challenge_status/<int:user_id>', methods=['GET'])
     def get_user_challenge_status(user_id):
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
         personal_challenges = PersonalChallengeParticipant.query.filter_by(user_id=user_id).all()
         community_challenges = CommunityChallengeParticipant.query.filter_by(participant_id=user_id).all()
 
-        personal_challenge_status = [{
-            "challenge_id": pc.challenge.id,
-            "name": pc.challenge.name,
-            "status": "Participating",
-            "type": "Personal",
-            "start_date": pc.start_date.isoformat(),
-            "end_date": pc.end_date.isoformat() if pc.end_date else None
-        } for pc in personal_challenges]
+        personal_challenge_status = []
+        for pc in personal_challenges:
+            challenge = Challenge.query.get(pc.challenge_id)
+            if not challenge:
+                continue
 
-        community_challenge_status = [{
-            "community_challenge_id": cc.community_challenge_id,
-            "challenge_id": cc.community_challenge.challenge_id,
-            "name": Challenge.query.get(cc.community_challenge.challenge_id).name,
-            "status": cc.status,
-            "type": "Community",
-            "start_date": cc.start_date.isoformat(),
-            "end_date": cc.end_date.isoformat() if cc.end_date else None
-        } for cc in community_challenges]
+            impact_record = EnvironmentalImpact.query.filter_by(
+                user_id=user_id,
+                personal_challenge_id=pc.id
+            ).first()
+            impact_score = impact_record.impact_score if impact_record else 0
+
+            personal_challenge_status.append({
+                "challenge_id": challenge.id,
+                "name": challenge.name,
+                "status": "Participating",
+                "type": "Personal",
+                "start_date": pc.start_date.isoformat(),
+                "end_date": pc.end_date.isoformat() if pc.end_date else None,
+                "impact_score": impact_score
+            })
+
+        community_challenge_status = []
+        for cc in community_challenges:
+            community_challenge = CommunityChallenge.query.get(cc.community_challenge_id)
+            if not community_challenge:
+                continue
+
+            challenge = Challenge.query.get(community_challenge.challenge_id)
+            if not challenge:
+                continue
+
+            impact_record = EnvironmentalImpact.query.filter_by(
+                user_id=user_id,
+                community_challenge_id=cc.community_challenge_id
+            ).first()
+            impact_score = impact_record.impact_score if impact_record else 0
+
+            community_challenge_status.append({
+                "community_challenge_id": community_challenge.id,
+                "challenge_id": challenge.id,
+                "name": challenge.name,
+                "status": cc.status,
+                "type": "Community",
+                "start_date": cc.start_date.isoformat(),
+                "end_date": cc.end_date.isoformat() if cc.end_date else None,
+                "impact_score": impact_score
+            })
 
         challenges_status = personal_challenge_status + community_challenge_status
         return jsonify(challenges_status)

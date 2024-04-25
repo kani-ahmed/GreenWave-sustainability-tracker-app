@@ -17,6 +17,10 @@ class EnvironmentalImpact(db.Model):
     co2_emissions_prevented = db.Column(db.Float, default=0)  # Kilograms of CO2 emissions prevented
     money_saved = db.Column(db.Float, default=0)  # Money saved in currency unit
     user = db.relationship('User', backref=db.backref('impacts', lazy=True))
+    personal_challenge_id = db.Column(db.Integer, db.ForeignKey('personal_challenge_participant.id'), nullable=True)
+    community_challenge_id = db.Column(db.Integer,
+                                       db.ForeignKey('community_challenge_participant.community_challenge_id'),
+                                       nullable=True)
 
 
 class Challenge(db.Model):
@@ -37,6 +41,7 @@ class PersonalChallengeParticipant(db.Model):
     end_date = db.Column(db.DateTime, nullable=True)
     challenge = db.relationship('Challenge', backref=db.backref('user_challenges', lazy=True))
     user = db.relationship('User', backref=db.backref('challenges', lazy='dynamic'))
+    environmental_impacts = db.relationship('EnvironmentalImpact', backref='personal_challenge', lazy='dynamic')
 
 
 # Association table for the many-to-many relationship between Badge and User
@@ -71,6 +76,7 @@ class CommunityChallengeParticipant(db.Model):
     progress = db.Column(db.Integer)  # Arbitrary progress metric, could be points, percentage, etc.
     start_date = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     end_date = db.Column(db.DateTime)  # Can be null until challenge is completed
+    environmental_impacts = db.relationship('EnvironmentalImpact', backref='community_challenge', lazy='dynamic')
 
     # Relationships - these might already be implicitly defined by backrefs from User and CommunityChallenge
     # participant = db.relationship('User', backref='community_participations')

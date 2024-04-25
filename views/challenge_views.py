@@ -2,7 +2,7 @@
 
 from flask import request, jsonify
 from models import Challenge, PersonalChallengeParticipant, User, CommunityChallenge, Badge, \
-    CommunityChallengeParticipant, ChallengesInbox
+    CommunityChallengeParticipant, ChallengesInbox, EnvironmentalImpact
 from extensions import db
 from datetime import datetime, timezone
 
@@ -294,17 +294,32 @@ def register_challenge_routes(app):
 
         personal_challenges = PersonalChallengeParticipant.query.filter_by(user_id=user_id).all()
         if not personal_challenges:
-            return jsonify({"error": "No personal challenges found for this user"}), 404
+            return jsonify({"message": "No personal challenges found for this user"}), 200
 
-        challenge_details = [{
-            'challenge_id': part.challenge.id,
-            'name': part.challenge.name,
-            'description': part.challenge.description,
-            'eco_points': part.challenge.eco_points,
-            'start_date': part.start_date.isoformat(),
-            'end_date': part.end_date.isoformat() if part.end_date else None,
-            'status': 'Completed' if part.end_date else 'In Progress'
-        } for part in personal_challenges]
+        challenge_details = []
+        for part in personal_challenges:
+            challenge = Challenge.query.get(part.challenge_id)
+            if not challenge:
+                continue
+
+            # Retrieve the environmental impact for the current personal challenge
+            environmental_impact = EnvironmentalImpact.query.filter_by(
+                user_id=user_id,
+                personal_challenge_id=part.id
+            ).first()
+
+            impact_score = environmental_impact.impact_score if environmental_impact else 0
+
+            challenge_details.append({
+                'challenge_id': challenge.id,
+                'name': challenge.name,
+                'description': challenge.description,
+                'start_date': part.start_date.isoformat(),
+                'end_date': part.end_date.isoformat() if part.end_date else None,
+                'status': 'Completed' if part.end_date else 'In Progress',
+                'impact_score': impact_score,
+                'total_impact_score_all_personal_challenges': user.eco_points
+            })
 
         return jsonify(challenge_details), 200
 

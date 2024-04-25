@@ -1,9 +1,11 @@
 # environment_views.py
 
-from flask import request, jsonify
-from models import EnvironmentalImpact, UserAction, User
-from extensions import db
 import math
+
+from flask import request, jsonify
+
+from extensions import db
+from models import EnvironmentalImpact, UserAction, User, PersonalChallengeParticipant, CommunityChallengeParticipant
 
 
 def register_environment_routes(app):
@@ -118,27 +120,61 @@ def register_environment_routes(app):
     @app.route('/log_water_usage', methods=['POST'])
     def log_water_usage():
         data = request.get_json()
-        user_id = data['user_id']
-        bottle_type = data['bottle_type']  # Expect 'recycled', 'single-use', 'refillable'
-        count = data.get('count', 1)
+        if not data:
+            return jsonify({"error": "Invalid request data"}), 400
 
-        # Retrieve or create EnvironmentalImpact record for user
+        user_id = data.get('user_id')
+        bottle_type = data.get('bottle_type')
+        count = data.get('count', 1)
+        challenge_type = data.get('challenge_type')
+        challenge_id = data.get('challenge_id')
+
+        if not user_id or not bottle_type:
+            return jsonify({"error": "User ID and bottle type are required"}), 400
+
         user = User.query.get(user_id)
-        impact_record = EnvironmentalImpact.query.filter_by(user_id=user_id).first()
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        if challenge_type:
+            if challenge_type not in ['personal', 'community']:
+                return jsonify({"error": "Invalid challenge type"}), 400
+
+            if not challenge_id:
+                return jsonify({"error": "Challenge ID is required"}), 400
+
+            if challenge_type == 'personal':
+                participant = PersonalChallengeParticipant.query.filter_by(user_id=user_id,
+                                                                           challenge_id=challenge_id).first()
+                if not participant:
+                    return jsonify({"error": "User is not a participant of this personal challenge"}), 403
+                impact_record = EnvironmentalImpact.query.filter_by(user_id=user_id,
+                                                                    personal_challenge_id=participant.id).first()
+            else:  # challenge_type == 'community'
+                participant = CommunityChallengeParticipant.query.filter_by(participant_id=user_id,
+                                                                            community_challenge_id=challenge_id).first()
+                if not participant:
+                    return jsonify({"error": "User is not a participant of this community challenge"}), 403
+                impact_record = EnvironmentalImpact.query.filter_by(user_id=user_id,
+                                                                    community_challenge_id=challenge_id).first()
+        else:
+            impact_record = EnvironmentalImpact.query.filter_by(user_id=user_id).first()
+
         if not impact_record:
-            impact_record = EnvironmentalImpact(
-                user_id=user_id,
-                impact_score=0  # Initialize impact_score to 0
-            )
+            impact_record = EnvironmentalImpact(user_id=user_id, impact_score=0)
+            if challenge_type == 'personal':
+                impact_record.personal_challenge_id = participant.id
+            elif challenge_type == 'community':
+                impact_record.community_challenge_id = challenge_id
             db.session.add(impact_record)
 
-        # Update environmental impact based on bottle type and count
-        update_environmental_impact(impact_record, bottle_type, count)
-
-        # Increment user's eco_points with the new impact score only
-        user.eco_points += impact_record.impact_score
-
-        db.session.commit()
+        try:
+            update_environmental_impact(impact_record, bottle_type, count)
+            user.eco_points += impact_record.impact_score
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": "An error occurred while updating the environmental impact"}), 500
 
         return jsonify({"message": "Water usage logged successfully"}), 200
 
@@ -201,4 +237,3 @@ def register_environment_routes(app):
             impact_record.money_saved
         )
         impact_record.impact_score = new_impact_score
-
