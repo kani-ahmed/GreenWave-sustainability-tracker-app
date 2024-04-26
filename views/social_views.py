@@ -2,7 +2,7 @@
 from flask import request, jsonify
 
 from extensions import db
-from models import Post, Like, Comment, Friendship, User
+from models import Post, Like, Comment, Friendship, User, MessagesInbox
 
 
 def register_social_routes(app):
@@ -186,3 +186,92 @@ def register_social_routes(app):
             friendship_list.append(friendship_data)
 
         return jsonify(friendship_list), 200
+
+    # Send a message to another user
+    @app.route('/send_message', methods=['POST'])
+    def send_message():
+        sender_id = request.json.get('sender_id')
+        recipient_id = request.json.get('recipient_id')
+        content = request.json.get('content')
+
+        # Check if required fields are missing
+        if not sender_id or not recipient_id or not content:
+            return jsonify({'message': 'Missing required fields'}), 400
+
+        # Check if sender and recipient users exist
+        sender = User.query.get(sender_id)
+        recipient = User.query.get(recipient_id)
+        if not sender or not recipient:
+            return jsonify({'message': 'Invalid sender or recipient'}), 400
+
+        try:
+            message = MessagesInbox(
+                user_id=recipient_id,
+                sender_id=sender_id,
+                content=content
+            )
+
+            db.session.add(message)
+            db.session.commit()
+
+            return jsonify({'message': 'Message sent successfully'}), 201
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'message': 'Error sending message', 'error': str(e)}), 500
+
+    # View sent messages
+    # View sent messages
+    @app.route('/sent_messages/<int:user_id>', methods=['GET'])
+    def view_sent_messages(user_id):
+        # Check if the user exists
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'message': 'User not found'}), 404
+
+        try:
+            messages = MessagesInbox.query.filter_by(sender_id=user_id).all()
+            sent_messages = []
+
+            for message in messages:
+                recipient = User.query.get(message.user_id)
+                sent_messages.append({
+                    'id': message.id,
+                    'recipient_id': message.user_id,
+                    'recipient_name': recipient.username,
+                    'content': message.content,
+                    'timestamp': message.timestamp.isoformat(),
+                    'message_type': "sent",
+                    'is_read': message.is_read
+                })
+
+            return jsonify({'sent_messages': sent_messages}), 200
+        except Exception as e:
+            return jsonify({'message': 'Error retrieving sent messages', 'error': str(e)}), 500
+
+    # View received messages
+    @app.route('/received_messages/<int:user_id>', methods=['GET'])
+    def view_received_messages(user_id):
+        # Check if the user exists
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'message': 'User not found'}), 404
+
+        try:
+            messages = MessagesInbox.query.filter_by(user_id=user_id).all()
+            received_messages = []
+
+            for message in messages:
+                sender = User.query.get(message.sender_id)
+                received_messages.append({
+                    'id': message.id,
+                    'sender_id': message.sender_id,
+                    'sender_name': sender.username,
+                    'content': message.content,
+                    'timestamp': message.timestamp.isoformat(),
+                    'message_type': 'received',
+                    'is_read': message.is_read
+                })
+
+            return jsonify({'received_messages': received_messages}), 200
+        except Exception as e:
+            return jsonify({'message': 'Error retrieving received messages', 'error': str(e)}), 500
