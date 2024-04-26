@@ -74,7 +74,7 @@ def register_environment_routes(app):
         if new_score is None:
             return jsonify({"error": "New score is required"}), 400
 
-        user.eco_points = new_score  # Assuming we're updating eco points as the impact score
+        user.eco_points = new_score
         db.session.commit()
 
         return jsonify({"message": "User impact score updated successfully", "eco_points": user.eco_points}), 200
