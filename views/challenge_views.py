@@ -1,10 +1,12 @@
 # challenge_views.py
 
+from datetime import datetime, timezone
+
 from flask import request, jsonify
+
+from extensions import db
 from models import Challenge, PersonalChallengeParticipant, User, CommunityChallenge, Badge, \
     CommunityChallengeParticipant, ChallengesInbox, EnvironmentalImpact
-from extensions import db
-from datetime import datetime, timezone
 
 
 def register_challenge_routes(app):
@@ -17,12 +19,17 @@ def register_challenge_routes(app):
         eco_points = data.get('eco_points')
         start_date = data.get('start_date')  # Expecting ISO 8601 format (e.g., "2020-01-01T00:00:00")
         end_date = data.get('end_date')  # Same format as start_date
+        user_id = data.get('user_id')
 
-        if not all([name, description, eco_points, start_date, end_date]):
+        if not all([name, description, eco_points, start_date, end_date, user_id]):
             return jsonify({"error": "Missing required challenge information"}), 400
 
         if Challenge.query.filter_by(name=name).first():
             return jsonify({"error": "Challenge with this name already exists"}), 409
+
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
 
         new_challenge = Challenge(
             name=name,
@@ -33,6 +40,16 @@ def register_challenge_routes(app):
         )
 
         db.session.add(new_challenge)
+        db.session.commit()
+
+        personal_challenge_participant = PersonalChallengeParticipant(
+            user_id=user_id,
+            challenge_id=new_challenge.id,
+            start_date=new_challenge.start_date,
+            end_date=new_challenge.end_date
+        )
+
+        db.session.add(personal_challenge_participant)
         db.session.commit()
 
         return jsonify({"message": "Challenge created successfully", "challenge_id": new_challenge.id}), 201
@@ -141,18 +158,33 @@ def register_challenge_routes(app):
     @app.route('/create_community_challenge', methods=['POST'])
     def create_community_challenge():
         data = request.get_json()
-        challenge_id = data.get('challenge_id')
+        name = data.get('name')
+        description = data.get('description')
+        eco_points = data.get('eco_points')
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
         created_by = data.get('created_by')
 
-        if not Challenge.query.get(challenge_id):
-            return jsonify({"error": "Challenge not found"}), 404
+        if not all([name, description, eco_points, start_date, end_date, created_by]):
+            return jsonify({"error": "Missing required challenge information"}), 400
 
-        new_community_challenge = CommunityChallenge(challenge_id=challenge_id, created_by=created_by)
+        new_challenge = Challenge(
+            name=name,
+            description=description,
+            eco_points=eco_points,
+            start_date=datetime.fromisoformat(start_date),
+            end_date=datetime.fromisoformat(end_date)
+        )
+        db.session.add(new_challenge)
+        db.session.commit()
+
+        new_community_challenge = CommunityChallenge(challenge_id=new_challenge.id, created_by=created_by)
         db.session.add(new_community_challenge)
         db.session.commit()
 
         return jsonify({"message": "Community challenge created successfully",
-                        "community_challenge_id": new_community_challenge.id}), 200
+                        "challenge_id": new_challenge.id,
+                        "community_challenge_id": new_community_challenge.id}), 201
 
     @app.route('/join_community_challenge', methods=['POST'])
     def join_community_challenge():
